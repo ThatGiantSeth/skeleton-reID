@@ -1,0 +1,10 @@
+NiTE2/
+pi-sim/
+primesense-py36/
+com.primesense.nite.jar
+NiTE.ini
+NiTE2.dll
+NiTE2.jni.dll
+NiTE2.jni.pdb
+NiTE2.pdb
+**/__pycache__
