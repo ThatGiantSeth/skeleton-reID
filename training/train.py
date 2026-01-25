@@ -1,9 +1,160 @@
+from pathlib import Path
+import re
 import torch
 import numpy as np
 from CNN import CNNet
+import torch.nn as nn
+import torch.optim as optim
 
-device = torch.accelerator.current_accelerator().type if torch.accelerator.is_available() else "cpu"
-print(f"Using device: {device}")
+WINDOW_SIZE = 10
+STRIDE = 5
 
-model = CNNet(window_size=10, num_joints=15, num_class=50, drop_prob=0.5).to(device)
+# create custom dataset from recorded arrays
+class SkeletonDataset(torch.utils.data.Dataset):
+    def __init__(self, skeletons, labels, window_size=WINDOW_SIZE, stride=STRIDE, normalize=True):
+        self.xdata = []
+        self.ydata = []
+        
+        for data, label in zip(skeletons, labels):
+            if normalize:
+                data_min = data.min()
+                data_max = data.max()
+                if data_max - data_min > 1e-8:
+                    data = (data - data_min) / (data_max - data_min)
+                else:
+                    data = data - data_min
 
+            num_frames = data.shape[0]
+            
+            for start_idx in range(0, num_frames - window_size + 1, stride):
+
+                window = data[start_idx:start_idx + window_size]
+                
+                tensor = torch.from_numpy(window).float()
+                tensor = tensor.permute(2, 0, 1)
+                
+                self.xdata.append(tensor)
+                self.ydata.append(label)
+        
+        print(f"Created {len(self.xdata)} windows from {len(skeletons)} sequences")
+            
+    def __len__(self):
+        return len(self.xdata)
+    
+    def __getitem__(self, idx):
+        return self.xdata[idx], self.ydata[idx]
+
+def get_arrays(directory="./data"):
+    arrays = []
+    labels = []
+    people = {}
+    directory = Path(directory)
+    npy_files = sorted(directory.glob("*.npy"))
+
+    for file in npy_files:
+        match = re.match(r'([a-zA-Z\-\']+)_.*\.npy', file.name)
+        if not match:
+            continue
+        person = match.group(1)
+        if person not in people:
+            people[person] = len(people)
+        array = np.load(file)
+        label = people[person]
+        arrays.append(array)
+        labels.append(label)
+    print(f"Loaded {len(arrays)} arrays for {len(people)} people from {directory}")
+    print(f"Person mapping: {people}")
+    return arrays, labels, people
+    
+def main():
+        train_arrays, train_labels, people = get_arrays("./data")
+        train_dataset = SkeletonDataset(train_arrays, train_labels, window_size=WINDOW_SIZE, stride=STRIDE)
+        train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=4, shuffle=True, num_workers=0)
+
+
+        val_arrays, val_labels, _ = get_arrays("./data_val")
+        val_dataset = SkeletonDataset(val_arrays, val_labels, window_size=WINDOW_SIZE, stride=STRIDE)
+        val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=4, shuffle=False, num_workers=0)
+
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        print(f"Using device: {device}")
+        if device == "cuda":
+            print(f"GPU: {torch.cuda.get_device_name(0)}")
+
+
+        ##Create CNN
+        net = CNNet(in_channel=3, num_joints=15, window_size=WINDOW_SIZE, num_class=len(set(train_labels)), drop_prob=0.5).to(device)
+
+        ##Loss Function & Optimizer
+            #CrossEntropyLoss: Combines LogSoftmax + NLLLoss.
+            #SGD: Stochastic Gradient Descent with momentum.
+        criterion = nn.CrossEntropyLoss()
+        optimizer = optim.SGD(net.parameters(), lr=0.001, momentum=0.9)
+
+        ##Training Loop
+        for epoch in range(15):  # loop over the dataset multiple times
+            net.train()  # Set to training mode
+            print(f"\nStarting epoch {epoch+1}")
+
+            running_loss = 0.0
+            for i, data in enumerate(train_loader, 0):
+                # get the inputs; data is a list of [inputs, labels]
+                inputs, labels = data
+                inputs, labels = inputs.to(device), labels.to(device)
+
+                # zero the parameter gradients
+                optimizer.zero_grad()
+
+                # forward + backward + optimize
+                outputs, encode_out = net(inputs) #Forward Pass- compute predictions
+                loss = criterion(outputs, labels)
+                loss.backward() #Backward Pass - compute gradients
+                optimizer.step() #updates weights
+
+                # print statistics
+                running_loss += loss.item()
+                if i % 50 == 49:    # print every 50 mini-batches
+                    print(f'[{epoch + 1}, {i + 1:5d}] loss: {running_loss / 50:.3f}')
+                    running_loss = 0.0
+            
+            
+            validate(net, val_loader, criterion, device, epoch)
+
+        print('Finished Training')
+        
+        # Save the model
+        torch.save(net.state_dict(), 'skeleton_model.pth')
+        print('Model saved to skeleton_model.pth')
+
+#
+# validation functionality generated by Copilot and has not been independently tested
+#
+def validate(net, val_loader, criterion, device, epoch):
+    """Run validation and print accuracy and loss"""
+    net.eval()  # Set to evaluation mode
+    val_loss = 0.0
+    correct = 0
+    total = 0
+    
+    with torch.no_grad():  # No gradient computation during validation
+        for data in val_loader:
+            inputs, labels = data
+            inputs, labels = inputs.to(device), labels.to(device)
+            
+            outputs, _ = net(inputs)
+            loss = criterion(outputs, labels)
+            val_loss += loss.item()
+            
+            # Calculate accuracy
+            _, predicted = torch.max(outputs.data, 1)
+            total += labels.size(0)
+            correct += (predicted == labels).sum().item()
+    
+    avg_loss = val_loss / len(val_loader)
+    accuracy = 100 * correct / total
+    print(f'\nValidation - Epoch {epoch + 1}: Loss: {avg_loss:.3f}, Accuracy: {accuracy:.2f}%')
+    return avg_loss, accuracy
+          
+            
+if __name__ == "__main__":
+    main()

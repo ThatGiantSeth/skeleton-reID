@@ -1,8 +1,11 @@
 NiTE2/
 pi-sim/
 primesense-py36/
+**/data/
+**/data_val/
 **.dll
 **.jar
 **.pdb
 NiTE.ini
 **/__pycache__
+**/**.pth
