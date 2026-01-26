@@ -8,10 +8,11 @@ import torch.optim as optim
 
 WINDOW_SIZE = 10
 STRIDE = 5
+EPOCHS = 15
 
 # create custom dataset from recorded arrays
 class SkeletonDataset(torch.utils.data.Dataset):
-    def __init__(self, skeletons, labels, window_size=WINDOW_SIZE, stride=STRIDE, normalize=True):
+    def __init__(self, skeletons, labels, window_size=WINDOW_SIZE, stride=STRIDE, normalize=False):
         self.xdata = []
         self.ydata = []
         
@@ -92,7 +93,7 @@ def main():
         optimizer = optim.SGD(net.parameters(), lr=0.001, momentum=0.9)
 
         ##Training Loop
-        for epoch in range(15):  # loop over the dataset multiple times
+        for epoch in range(EPOCHS):  # loop over the dataset multiple times
             net.train()  # Set to training mode
             print(f"\nStarting epoch {epoch+1}")
 
