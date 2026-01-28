@@ -6,30 +6,36 @@ from CNN import CNNet
 import torch.nn as nn
 import torch.optim as optim
 
-WINDOW_SIZE = 10
-STRIDE = 5
+WINDOW_SIZE = 20
+STRIDE = 3
 EPOCHS = 15
+LR = 0.0005
 
 # create custom dataset from recorded arrays
 class SkeletonDataset(torch.utils.data.Dataset):
-    def __init__(self, skeletons, labels, window_size=WINDOW_SIZE, stride=STRIDE, normalize=False):
+    def __init__(self, skeletons, labels, window_size=WINDOW_SIZE, stride=STRIDE, normalize=True):
         self.xdata = []
         self.ydata = []
         
         for data, label in zip(skeletons, labels):
             if normalize:
-                data_min = data.min()
-                data_max = data.max()
-                if data_max - data_min > 1e-8:
-                    data = (data - data_min) / (data_max - data_min)
-                else:
-                    data = data - data_min
+                mean, std = compute_normalization_stats(skeletons)
+
+                ## this performs the same root centering as in the function above. 
+                    # it is redundant but causes issues if not done separately for some reason
+                root = data[:, 0, :][:, None, :]
+                data = data - root
+
+                mean_bc = mean.reshape(1, 1, -1)
+                std_bc = np.maximum(std.reshape(1, 1, -1), 1e-6)
+                data = (data - mean_bc) / std_bc
 
             num_frames = data.shape[0]
             
-            for start_idx in range(0, num_frames - window_size + 1, stride):
+            ## apply sliding window to the data before adding to the dataset
+            for window_start in range(0, num_frames - window_size + 1, stride):
 
-                window = data[start_idx:start_idx + window_size]
+                window = data[window_start:window_start + window_size]
                 
                 tensor = torch.from_numpy(window).float()
                 tensor = tensor.permute(2, 0, 1)
@@ -37,7 +43,7 @@ class SkeletonDataset(torch.utils.data.Dataset):
                 self.xdata.append(tensor)
                 self.ydata.append(label)
         
-        print(f"Created {len(self.xdata)} windows from {len(skeletons)} sequences")
+        print(f"Created {len(self.xdata)} windows from data")
             
     def __len__(self):
         return len(self.xdata)
@@ -45,7 +51,8 @@ class SkeletonDataset(torch.utils.data.Dataset):
     def __getitem__(self, idx):
         return self.xdata[idx], self.ydata[idx]
 
-def get_arrays(directory="./data"):
+## load all numpy arrays from the specified folder and assign labels
+def get_arrays(directory="./data", trim_front=499):
     arrays = []
     labels = []
     people = {}
@@ -53,108 +60,196 @@ def get_arrays(directory="./data"):
     npy_files = sorted(directory.glob("*.npy"))
 
     for file in npy_files:
+        # get files named person_*****.npy
         match = re.match(r'([a-zA-Z\-\']+)_.*\.npy', file.name)
         if not match:
             continue
+        
         person = match.group(1)
+        
+        # handle multiple recordings per person
         if person not in people:
             people[person] = len(people)
+
         array = np.load(file)
+        
+        # trim the specified # of frames from the array to remove calibration period
+        if trim_front > 0:
+            array = array[trim_front:]
+        
         label = people[person]
         arrays.append(array)
         labels.append(label)
+
     print(f"Loaded {len(arrays)} arrays for {len(people)} people from {directory}")
-    print(f"Person mapping: {people}")
+    print(f"People + labels: {people}")
     return arrays, labels, people
-    
+
+
+## function written by copilot, still researching, increases accuracy by typically 10-20% though
+def compute_normalization_stats(skeletons, center_root=True, root_joint=0, eps=1e-6):
+    channel_sums = np.zeros(3, dtype=np.float64)
+    channel_sq_sums = np.zeros(3, dtype=np.float64)
+    total = 0
+
+    for data in skeletons:
+        ## this part i understand - it chooses a joint to normalize around and subtracts its position 
+            # this allows the data to be centered around the moving target, not the fixed coordinates
+            # i chose the head because it is occluded the least often, i did test all the other joints though and their results weren't as good
+        if center_root:
+            root = data[:, root_joint, :][:, None, :]
+            data = data - root
+
+        ## i have no idea what this does yet but it does help
+        flat = data.reshape(-1, data.shape[2])  # (frames*joints, channels)
+        channel_sums += flat.sum(axis=0)
+        channel_sq_sums += np.square(flat).sum(axis=0)
+        total += flat.shape[0]
+
+    mean = channel_sums / total
+    var = channel_sq_sums / total - mean ** 2
+    std = np.sqrt(np.maximum(var, eps))
+    return mean.astype(np.float32), std.astype(np.float32)
+
+## main program (probably needs to be refactored into more helper functions)
 def main():
-        train_arrays, train_labels, people = get_arrays("./data")
-        train_dataset = SkeletonDataset(train_arrays, train_labels, window_size=WINDOW_SIZE, stride=STRIDE)
-        train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=4, shuffle=True, num_workers=0)
+    
+    # get training data and create dataset
+    train_arrays, train_labels, people = get_arrays("./data")
+
+    train_dataset = SkeletonDataset(train_arrays, train_labels, window_size=WINDOW_SIZE, stride=STRIDE, normalize=True)
+
+    train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=4, shuffle=True, num_workers=0)
 
 
-        val_arrays, val_labels, _ = get_arrays("./data_val")
-        val_dataset = SkeletonDataset(val_arrays, val_labels, window_size=WINDOW_SIZE, stride=STRIDE)
-        val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=4, shuffle=False, num_workers=0)
+    val_arrays, val_labels, _ = get_arrays("./data_val")
+    val_dataset = SkeletonDataset(val_arrays, val_labels, window_size=WINDOW_SIZE, stride=STRIDE, normalize=True)
+    val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=4, shuffle=False, num_workers=0)
 
-        device = "cuda" if torch.cuda.is_available() else "cpu"
-        print(f"Using device: {device}")
-        if device == "cuda":
-            print(f"GPU: {torch.cuda.get_device_name(0)}")
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    print(f"Using device: {device}")
+    if device == "cuda":
+        print(f"GPU: {torch.cuda.get_device_name(0)}")
 
 
-        ##Create CNN
-        net = CNNet(in_channel=3, num_joints=15, window_size=WINDOW_SIZE, num_class=len(set(train_labels)), drop_prob=0.5).to(device)
+    ##Create CNN
+    num_classes = len(set(train_labels))
+    net = CNNet(in_channel=3, num_joints=15, window_size=WINDOW_SIZE, num_class=num_classes, drop_prob=0.5).to(device)
 
-        ##Loss Function & Optimizer
-            #CrossEntropyLoss: Combines LogSoftmax + NLLLoss.
-            #SGD: Stochastic Gradient Descent with momentum.
-        criterion = nn.CrossEntropyLoss()
-        optimizer = optim.SGD(net.parameters(), lr=0.001, momentum=0.9)
+    ## Below code is mostly modified from the standard PyTorch training example for image classification
+        # This excludes the validation loop, see notes below
+    
+    ##Loss Function & Optimizer
+        #CrossEntropyLoss: Combines LogSoftmax + NLLLoss.
+        #SGD: Stochastic Gradient Descent with momentum.
+    criterion = nn.CrossEntropyLoss()
+    optimizer = optim.SGD(net.parameters(), lr=LR, momentum=0.9, weight_decay=1e-4)
 
-        ##Training Loop
-        for epoch in range(EPOCHS):  # loop over the dataset multiple times
-            net.train()  # Set to training mode
-            print(f"\nStarting epoch {epoch+1}")
+    best_acc = 0.0
+    model_file = "skeleton_model_best.pth"
 
-            running_loss = 0.0
-            for i, data in enumerate(train_loader, 0):
-                # get the inputs; data is a list of [inputs, labels]
-                inputs, labels = data
-                inputs, labels = inputs.to(device), labels.to(device)
+    ##Training Loop
+    for epoch in range(EPOCHS):  # loop over the dataset multiple times
+        net.train()  # Set to training mode
+        print(f"\nStarting epoch {epoch+1}")
 
-                # zero the parameter gradients
-                optimizer.zero_grad()
+        running_loss = 0.0
+        for i, data in enumerate(train_loader, 0):
+            # get the inputs; data is a list of [inputs, labels]
+            inputs, labels = data
+            inputs, labels = inputs.to(device), labels.to(device)
 
-                # forward + backward + optimize
-                outputs, encode_out = net(inputs) #Forward Pass- compute predictions
-                loss = criterion(outputs, labels)
-                loss.backward() #Backward Pass - compute gradients
-                optimizer.step() #updates weights
+            # zero the parameter gradients
+            optimizer.zero_grad()
 
-                # print statistics
-                running_loss += loss.item()
-                if i % 50 == 49:    # print every 50 mini-batches
-                    print(f'[{epoch + 1}, {i + 1:5d}] loss: {running_loss / 50:.3f}')
-                    running_loss = 0.0
-            
-            
-            validate(net, val_loader, criterion, device, epoch)
+            # forward + backward + optimize
+            outputs, encode_out = net(inputs) #Forward Pass- compute predictions
+            loss = criterion(outputs, labels)
+            loss.backward() #Backward Pass - compute gradients
+            optimizer.step() #updates weights
 
-        print('Finished Training')
-        
-        # Save the model
-        torch.save(net.state_dict(), 'skeleton_model.pth')
-        print('Model saved to skeleton_model.pth')
+            # print statistics
+            running_loss += loss.item()
+            if i % 50 == 49:    # print every 50 mini-batches
+                print(f'[{epoch + 1}, {i + 1:5d}] loss: {running_loss / 50:.3f}')
+                running_loss = 0.0
 
-#
-# validation functionality generated by Copilot and has not been independently tested
-#
+        ## use a separate folder of numpy arrays to test the accuracy after each epoch
+            # also save the model with the highest accuracy
+        val_acc = validate(net, val_loader, criterion, device, epoch)
+        if val_acc > best_acc:
+            best_acc = val_acc
+            torch.save(net.state_dict(), model_file)
+            print(f"New best acc {best_acc:.2f}% saved to {model_file}")
+
+    print('Finished Training')
+
+    ## this is just for inspecting the final model's confusion matrix for debugging and checking model biases
+    net.load_state_dict(torch.load(model_file, map_location=device))
+    print(f"Loaded best model (acc {best_acc:.2f}%) from {model_file}")
+    print_confusion_matrix(net, val_loader, device, num_classes)
+
+## majority of this function also taken from PyTorch example
 def validate(net, val_loader, criterion, device, epoch):
-    """Run validation and print accuracy and loss"""
-    net.eval()  # Set to evaluation mode
-    val_loss = 0.0
+    net.eval()
     correct = 0
     total = 0
     
-    with torch.no_grad():  # No gradient computation during validation
+    # since we're not training, we don't need to calculate the gradients for our outputs
+    with torch.no_grad():
         for data in val_loader:
             inputs, labels = data
             inputs, labels = inputs.to(device), labels.to(device)
             
+            # calculate outputs by running validation data through the network
             outputs, _ = net(inputs)
             loss = criterion(outputs, labels)
-            val_loss += loss.item()
             
-            # Calculate accuracy
+            # the class with the highest energy is what we choose as prediction
             _, predicted = torch.max(outputs.data, 1)
             total += labels.size(0)
             correct += (predicted == labels).sum().item()
     
-    avg_loss = val_loss / len(val_loader)
     accuracy = 100 * correct / total
-    print(f'\nValidation - Epoch {epoch + 1}: Loss: {avg_loss:.3f}, Accuracy: {accuracy:.2f}%')
-    return avg_loss, accuracy
+    print(f'\nValidation - Epoch {epoch + 1} accuracy: {accuracy:.2f}%')
+    return accuracy
+
+#
+# copilot wrote this function on its own, i have no idea how it works, but it's only used for debugging and bias testing
+#
+def print_confusion_matrix(net, val_loader, device, num_classes):
+    """Compute and print a confusion matrix to spot class bias."""
+    net.eval()
+    conf = torch.zeros((num_classes, num_classes), dtype=torch.int64)
+    with torch.no_grad():
+        for inputs, labels in val_loader:
+            inputs, labels = inputs.to(device), labels.to(device)
+            outputs, _ = net(inputs)
+            preds = outputs.argmax(dim=1)
+            for t, p in zip(labels.view(-1), preds.view(-1)):
+                conf[t.long(), p.long()] += 1
+
+    # try to recover class names from the label mapping used in training
+    # by looking at the dataset folder names; fallback to indices
+    # Note: we assume the mapping in get_arrays was alphabetical by filename order
+    class_names = [f"class_{i}" for i in range(num_classes)]
+
+    print("Confusion matrix (rows=true, cols=pred):")
+    header = ["true/pred"] + class_names
+    rows = []
+    conf_np = conf.cpu().numpy()
+    for idx, row in enumerate(conf_np):
+        rows.append([class_names[idx]] + row.tolist())
+
+    # pretty print as a simple table
+    col_widths = [max(len(str(x)) for x in col) for col in zip(*([header] + rows))]
+    def fmt_row(r):
+        return " | ".join(str(x).ljust(w) for x, w in zip(r, col_widths))
+
+    print(fmt_row(header))
+    print("-+-".join("-" * w for w in col_widths))
+    for r in rows:
+        print(fmt_row(r))
           
             
 if __name__ == "__main__":
