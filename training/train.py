@@ -19,16 +19,18 @@ class SkeletonDataset(torch.utils.data.Dataset):
         
         for data, label in zip(skeletons, labels):
             if normalize:
-                mean, std = compute_normalization_stats(skeletons)
+                min_vals, range_vals = compute_normalization(skeletons)
 
-                ## this performs the same root centering as in the function above. 
-                    # it is redundant but causes issues if not done separately for some reason
+                ## this chooses a joint to normalize around and subtracts its position 
+                    # this allows the data to be centered around the moving target, not the fixed coordinates
+                    # i chose the head because it is occluded the least often
                 root = data[:, 0, :][:, None, :]
                 data = data - root
 
-                mean_bc = mean.reshape(1, 1, -1)
-                std_bc = np.maximum(std.reshape(1, 1, -1), 1e-6)
-                data = (data - mean_bc) / std_bc
+                # normalize to [0, 1] range for each dimension (x, y, z)
+                min_bc = min_vals.reshape(1, 1, -1)
+                range_bc = range_vals.reshape(1, 1, -1)
+                data = (data - min_bc) / range_bc
 
             num_frames = data.shape[0]
             
@@ -86,30 +88,27 @@ def get_arrays(directory="./data", trim_front=499):
     return arrays, labels, people
 
 
-## function written by copilot, still researching, increases accuracy by typically 10-20% though
-def compute_normalization_stats(skeletons, center_root=True, root_joint=0, eps=1e-6):
-    channel_sums = np.zeros(3, dtype=np.float64)
-    channel_sq_sums = np.zeros(3, dtype=np.float64)
-    total = 0
+## normalization for each dimension (x, y, z)
+def compute_normalization(skeletons, center_root=True, root_joint=0, eps=1e-6):
+    channel_mins = np.full(3, np.inf, dtype=np.float64)
+    channel_maxs = np.full(3, -np.inf, dtype=np.float64)
 
     for data in skeletons:
-        ## this part i understand - it chooses a joint to normalize around and subtracts its position 
+        ## this chooses a joint to normalize around and subtracts its position 
             # this allows the data to be centered around the moving target, not the fixed coordinates
-            # i chose the head because it is occluded the least often, i did test all the other joints though and their results weren't as good
+            # i chose the head because it is occluded the least often
         if center_root:
             root = data[:, root_joint, :][:, None, :]
             data = data - root
 
-        ## i have no idea what this does yet but it does help
+        ## find min and max for each channel (x, y, z)
         flat = data.reshape(-1, data.shape[2])  # (frames*joints, channels)
-        channel_sums += flat.sum(axis=0)
-        channel_sq_sums += np.square(flat).sum(axis=0)
-        total += flat.shape[0]
+        channel_mins = np.minimum(channel_mins, flat.min(axis=0))
+        channel_maxs = np.maximum(channel_maxs, flat.max(axis=0))
 
-    mean = channel_sums / total
-    var = channel_sq_sums / total - mean ** 2
-    std = np.sqrt(np.maximum(var, eps))
-    return mean.astype(np.float32), std.astype(np.float32)
+    # ensure we don't divide by zero
+    range_vals = np.maximum(channel_maxs - channel_mins, eps)
+    return channel_mins.astype(np.float32), range_vals.astype(np.float32)
 
 ## main program (probably needs to be refactored into more helper functions)
 def main():
