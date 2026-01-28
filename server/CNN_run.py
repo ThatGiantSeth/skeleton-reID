@@ -3,7 +3,7 @@ import numpy as np
 import CNN as cnn
 import time
 
-window = 10
+window = 20
 joints = 15
 num_classes = 4  # Updated to match the number of persons
 persons = ['antonio', 'aubrey', 'noor', 'seth']
@@ -14,11 +14,11 @@ def classifier_model():
 
 def identify_person(numpy_array):
     """
-    Accepts a numpy array of shape (10, 15, 3) representing skeleton data for 10 frames, 15 joints, 3 coordinates.
+    Accepts a numpy array of shape (20, 15, 3) representing skeleton data for 20 frames, 15 joints, 3 coordinates.
     Returns the identified person name.
     """
-    if numpy_array.shape != (10, 15, 3):
-        raise ValueError("Input numpy array must have shape (10, 15, 3)")
+    if numpy_array.shape != (20, 15, 3):
+        raise ValueError("Input numpy array must have shape (20, 15, 3)")
 
     tensor = torch.from_numpy(numpy_array).float()
     tensor = tensor.permute(2, 0, 1).unsqueeze(0)  # Shape: (1, 3, 10, 15)
@@ -31,13 +31,16 @@ def identify_person(numpy_array):
 
 # Load the model
 model = classifier_model()
-model.load_state_dict(torch.load('../training/skeleton_model.pth', map_location='cpu'))
+model.load_state_dict(torch.load('../training/skeleton_model_best.pth', map_location='cpu'))
 
 # Example usage with data from data_val
 # Load a sample from validation data
 sample_data = np.load('../training/data_val/noor_standing1000.npy')
-# Take the first 10 frames
-input_array = sample_data[:10]
+# Select a random window of 20 frames
+max_start_idx = sample_data.shape[0] - window
+random_start_idx = np.random.randint(0, max_start_idx)
+input_array = sample_data[random_start_idx:random_start_idx + window]
+print(f"Using frames {random_start_idx} to {random_start_idx + window - 1}")
 
 start_time = time.process_time()
 person = identify_person(input_array)

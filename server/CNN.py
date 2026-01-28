@@ -6,7 +6,7 @@ import torch.nn as nn
 class CNNet(nn.Module):
     def __init__(self,
                  in_channel=3,
-                 num_joints=13,
+                 num_joints=15,
                  window_size=3,
                  out_channel=16,
                  num_class = 48,
