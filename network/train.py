@@ -1,40 +1,31 @@
 from pathlib import Path
-import re
+import sys
 import torch
-import numpy as np
 from CNN import CNNet
 import torch.nn as nn
 import torch.optim as optim
 
-WINDOW_SIZE = 20
+from preprocessing import get_arrays, normalize_skeleton
+
+WINDOW_SIZE = 50
 STRIDE = 3
-EPOCHS = 15
-LR = 0.0005
+EPOCHS = 20
+LR = 0.0003
 
 # create custom dataset from recorded arrays
 class SkeletonDataset(torch.utils.data.Dataset):
     def __init__(self, skeletons, labels, window_size=WINDOW_SIZE, stride=STRIDE, normalize=True):
         self.xdata = []
         self.ydata = []
-        
+
         for data, label in zip(skeletons, labels):
+            ## preprocessing
             if normalize:
-                min_vals, range_vals = compute_normalization(skeletons)
-
-                ## this chooses a joint to normalize around and subtracts its position 
-                    # this allows the data to be centered around the moving target, not the fixed coordinates
-                    # i chose the head because it is occluded the least often
-                root = data[:, 0, :][:, None, :]
-                data = data - root
-
-                # normalize to [0, 1] range for each dimension (x, y, z)
-                min_bc = min_vals.reshape(1, 1, -1)
-                range_bc = range_vals.reshape(1, 1, -1)
-                data = (data - min_bc) / range_bc
+                data = normalize_skeleton(data)
 
             num_frames = data.shape[0]
             
-            ## apply sliding window to the data before adding to the dataset
+            ## apply sliding window to the data when adding to the dataset
             for window_start in range(0, num_frames - window_size + 1, stride):
 
                 window = data[window_start:window_start + window_size]
@@ -53,62 +44,7 @@ class SkeletonDataset(torch.utils.data.Dataset):
     def __getitem__(self, idx):
         return self.xdata[idx], self.ydata[idx]
 
-## load all numpy arrays from the specified folder and assign labels
-def get_arrays(directory="./data", trim_front=499):
-    arrays = []
-    labels = []
-    people = {}
-    directory = Path(directory)
-    npy_files = sorted(directory.glob("*.npy"))
 
-    for file in npy_files:
-        # get files named person_*****.npy
-        match = re.match(r'([a-zA-Z\-\']+)_.*\.npy', file.name)
-        if not match:
-            continue
-        
-        person = match.group(1)
-        
-        # handle multiple recordings per person
-        if person not in people:
-            people[person] = len(people)
-
-        array = np.load(file)
-        
-        # trim the specified # of frames from the array to remove calibration period
-        if trim_front > 0:
-            array = array[trim_front:]
-        
-        label = people[person]
-        arrays.append(array)
-        labels.append(label)
-
-    print(f"Loaded {len(arrays)} arrays for {len(people)} people from {directory}")
-    print(f"People + labels: {people}")
-    return arrays, labels, people
-
-
-## normalization for each dimension (x, y, z)
-def compute_normalization(skeletons, center_root=True, root_joint=0, eps=1e-6):
-    channel_mins = np.full(3, np.inf, dtype=np.float64)
-    channel_maxs = np.full(3, -np.inf, dtype=np.float64)
-
-    for data in skeletons:
-        ## this chooses a joint to normalize around and subtracts its position 
-            # this allows the data to be centered around the moving target, not the fixed coordinates
-            # i chose the head because it is occluded the least often
-        if center_root:
-            root = data[:, root_joint, :][:, None, :]
-            data = data - root
-
-        ## find min and max for each channel (x, y, z)
-        flat = data.reshape(-1, data.shape[2])  # (frames*joints, channels)
-        channel_mins = np.minimum(channel_mins, flat.min(axis=0))
-        channel_maxs = np.maximum(channel_maxs, flat.max(axis=0))
-
-    # ensure we don't divide by zero
-    range_vals = np.maximum(channel_maxs - channel_mins, eps)
-    return channel_mins.astype(np.float32), range_vals.astype(np.float32)
 
 ## main program (probably needs to be refactored into more helper functions)
 def main():
@@ -120,23 +56,24 @@ def main():
 
     train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=4, shuffle=True, num_workers=0)
 
-
+    # same operations as above but loading data to validate during training
     val_arrays, val_labels, _ = get_arrays("./data_val")
     val_dataset = SkeletonDataset(val_arrays, val_labels, window_size=WINDOW_SIZE, stride=STRIDE, normalize=True)
     val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=4, shuffle=False, num_workers=0)
 
+    # use a GPU if available
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print(f"Using device: {device}")
     if device == "cuda":
         print(f"GPU: {torch.cuda.get_device_name(0)}")
 
 
-    ##Create CNN
+    # Create CNN
     num_classes = len(set(train_labels))
     net = CNNet(in_channel=3, num_joints=15, window_size=WINDOW_SIZE, num_class=num_classes, drop_prob=0.5).to(device)
 
     ## Below code is mostly modified from the standard PyTorch training example for image classification
-        # This excludes the validation loop, see notes below
+        # This excludes the confusion matrix function, see notes below
     
     ##Loss Function & Optimizer
         #CrossEntropyLoss: Combines LogSoftmax + NLLLoss.
