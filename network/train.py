@@ -1,5 +1,3 @@
-from pathlib import Path
-import sys
 import torch
 from CNN import CNNet
 import torch.nn as nn

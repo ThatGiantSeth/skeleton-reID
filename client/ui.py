@@ -1,17 +1,38 @@
 import sys
-from PyQt5.QtCore import Qt
-from PyQt5.QtGui import QPixmap, QFont
+import numpy as np
+import cv2
+from PyQt5.QtCore import Qt, pyqtSignal
+from PyQt5.QtGui import QPixmap, QFont, QImage
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
                              QHBoxLayout, QLabel)
 temp_ip = "192.168.168.2"
 temp_port = 5555
 
+class CameraFeed(QLabel):
+    
+    def __init__(self):
+        super().__init__()
+    
+    def update_frame(self, frame: np.ndarray):
+        rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        h, w, ch = rgb_frame.shape
+        bytes_per_line = ch * w
+        qt_image = QImage(rgb_frame.data, w, h, bytes_per_line, QImage.Format_RGB888)
+        
+        pixmap = QPixmap.fromImage(qt_image)
+        scaled_pixmap = pixmap.scaledToWidth(self.width(), Qt.SmoothTransformation)
+        self.setPixmap(scaled_pixmap)
+
 class MainWindow(QMainWindow):
+    camera_frame = pyqtSignal(np.ndarray)
+    
     def __init__(self):
         super().__init__()
 
         self.setWindowTitle("Skeleton Re-identification")
-        self.setGeometry(100,100,850,820)
+        self.setFixedSize(850,820)
+        
+        self.camera_frame.connect(self.update_camera);
         
         layout = QVBoxLayout()
         top_layout = QHBoxLayout()
@@ -37,13 +58,10 @@ class MainWindow(QMainWindow):
         feed_title.setFont(QFont('Arial', 14))
         camera_layout.addWidget(feed_title)
         
-        # replace with actual camera feed
-        temp_feed = QPixmap('temp_feed.jpg');
-        feed = QLabel()
-        feed.setPixmap(temp_feed)
-        feed.setMinimumSize(480, 360)
-        feed.setAlignment(Qt.AlignCenter)
-        camera_layout.addWidget(feed)
+        self.feed = CameraFeed()
+        self.feed.setMinimumSize(480, 360)
+        self.feed.setAlignment(Qt.AlignCenter)
+        camera_layout.addWidget(self.feed)
 
         main_title = QLabel(f'Connected to server at: {temp_ip}:{temp_port}')
         main_title.setAlignment(Qt.AlignCenter)
@@ -56,14 +74,21 @@ class MainWindow(QMainWindow):
         widget.setLayout(layout)
         self.setCentralWidget(widget)
         
+    def update_camera(self, frame: np.ndarray):
+        self.feed.update_frame(frame)
+    
+    def update_ui(self, frame: np.ndarray):
+        self.camera_frame.emit(frame)
         
         
-        
+def runUI():
+    app = QApplication(sys.argv)
 
+    window = MainWindow()
+    window.show()
 
-app = QApplication(sys.argv)
-
-window = MainWindow()
-window.show()
-
-app.exec()
+    app.exec()
+    
+    
+if __name__ == "__main__":
+    runUI()
