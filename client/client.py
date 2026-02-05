@@ -3,9 +3,10 @@ import argparse
 from openni import openni2, nite2, utils
 import numpy as np
 import cv2
-from PyQt5.QtCore import QTimer
+from PyQt5.QtCore import QTimer, QObject, pyqtSignal
 from PyQt5.QtWidgets import QApplication
 import asyncio
+from qasync import QEventLoop, asyncSlot
 
 from ui import MainWindow
 
@@ -60,7 +61,7 @@ def draw_skeleton(img, ut, user, col):
 # -------------------------------------------------------------
 # main program from here
 # -------------------------------------------------------------
-
+    
 def init_capture_device():
 
     openni2.initialize()
@@ -72,10 +73,15 @@ def close_capture_device():
     nite2.unload()
     openni2.unload()
 
-class SkeletonGrabber():
+class SkeletonGrabber(QObject):
+    frame_ready = pyqtSignal(np.ndarray)
+    skeleton_ready = pyqtSignal(np.ndarray)
+    
     def __init__(self, ui):
+        super().__init__()
         self.ui = ui
         self.dev = init_capture_device()
+        self.img = None
 
         dev_name = self.dev.get_device_info().name.decode('UTF-8')
         print("Device Name: {}".format(dev_name))
@@ -101,30 +107,42 @@ class SkeletonGrabber():
 
         color_frame = self.color_stream.read_frame()
         color_frame_data = color_frame.get_buffer_as_uint8()
-        img = np.ndarray((color_frame.height, color_frame.width, 3), dtype=np.uint8,
+        self.img = np.ndarray((color_frame.height, color_frame.width, 3), dtype=np.uint8,
                             buffer=color_frame_data)
         if self.use_kinect:
-            img = img[0:self.img_h, 0:self.img_w]
-        img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
-
+            self.img = self.img[0:self.img_h, 0:self.img_w]
+        self.img = cv2.cvtColor(self.img, cv2.COLOR_RGB2BGR)
         if ut_frame.users:
             for user in ut_frame.users:
                 if user.is_new():
                     print("new human id:{} detected.".format(user.id))
                     self.user_tracker.start_skeleton_tracking(user.id)
                 elif (user.state == nite2.UserState.NITE_USER_STATE_VISIBLE and user.skeleton.state == nite2.SkeletonState.NITE_SKELETON_TRACKED):
-                    draw_skeleton(img, self.user_tracker, user, (255, 0, 0))
+                    draw_skeleton(self.img, self.user_tracker, user, (255, 0, 0))
+                    ## this logic needs to be changed to actually emit the skeleton data, and i need to figure out how to make it into batches of 50 to match window size
+                    self.skeleton_ready.emit(self.img)
         
+        self.frame_ready.emit(self.img)
+    
+    def update_ui(self):
         ## need to somehow make an async thread to send the data to the Pi so that it doesn't block frame updates once the streaming connection is implemented
-        self.ui.update_ui(img)
+        self.ui.update_ui(self.img)
+    
+    @asyncSlot(np.ndarray)
+    async def send_skeleton_data(self, img):
+        print(f"Sending skeleton data...")
 
 def main():
     # start the UI
     app = QApplication(sys.argv)
+    loop = QEventLoop(app)
+    asyncio.set_event_loop(loop)
     ui = MainWindow()
     ui.show()
     
     skeleton_grabber = SkeletonGrabber(ui)
+    skeleton_grabber.frame_ready.connect(ui.update_ui)
+    skeleton_grabber.skeleton_ready.connect(skeleton_grabber.send_skeleton_data)
     
     
     # pretend theres server code here
@@ -139,7 +157,8 @@ def main():
     timer.timeout.connect(skeleton_grabber.capture_skeleton)
     timer.start(30)
 
-    sys.exit(app.exec_())
+    with loop:
+        loop.run_forever()
 
 if __name__ == '__main__':
     main()

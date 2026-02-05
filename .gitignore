@@ -2,6 +2,7 @@ NiTE2/
 pi-sim/
 pi-sim2/
 primesense-py36/
+primesense-py-desktop/
 **/data/
 **/data_val/
 **.dll
