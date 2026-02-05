@@ -7,6 +7,7 @@ from PyQt5.QtCore import QTimer, QObject, pyqtSignal
 from PyQt5.QtWidgets import QApplication
 import asyncio
 from qasync import QEventLoop, asyncSlot
+from preprocessing import normalize_skeleton
 
 from ui import MainWindow
 
@@ -82,6 +83,8 @@ class SkeletonGrabber(QObject):
         self.ui = ui
         self.dev = init_capture_device()
         self.img = None
+        self.skeleton_buffer = []
+        self.buffer_size = 50
 
         dev_name = self.dev.get_device_info().name.decode('UTF-8')
         print("Device Name: {}".format(dev_name))
@@ -120,7 +123,20 @@ class SkeletonGrabber(QObject):
                 elif (user.state == nite2.UserState.NITE_USER_STATE_VISIBLE and user.skeleton.state == nite2.SkeletonState.NITE_SKELETON_TRACKED):
                     draw_skeleton(self.img, self.user_tracker, user, (255, 0, 0))
                     ## this logic needs to be changed to actually emit the skeleton data, and i need to figure out how to make it into batches of 50 to match window size
-                    self.skeleton_ready.emit(self.img)
+                    
+                    # Buffer skeleton data for server
+                    joints = user.skeleton.joints
+                    skeleton_array = np.array([
+                                    [joint.position.x, joint.position.y, joint.position.z]
+                                    for joint in joints
+                                    ])
+                    self.skeleton_buffer.append(skeleton_array)
+                    
+                    # Only emit skeleton_ready when buffer is full
+                    if len(self.skeleton_buffer) >= self.buffer_size:
+                        batch = np.array(self.skeleton_buffer)
+                        self.skeleton_ready.emit(batch)
+                        self.skeleton_buffer = []
         
         self.frame_ready.emit(self.img)
     
@@ -129,8 +145,10 @@ class SkeletonGrabber(QObject):
         self.ui.update_ui(self.img)
     
     @asyncSlot(np.ndarray)
-    async def send_skeleton_data(self, img):
-        print(f"Sending skeleton data...")
+    async def send_skeleton_data(self, batch):
+        ## preprocess batch
+        batch = normalize_skeleton(batch)
+        print(f"Batch shape is {batch.shape}")
 
 def main():
     # start the UI
