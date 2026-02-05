@@ -5,8 +5,6 @@ from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtGui import QPixmap, QFont, QImage
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
                              QHBoxLayout, QLabel)
-temp_ip = "192.168.168.2"
-temp_port = 5555
 
 class CameraFeed(QLabel):
     
@@ -63,12 +61,12 @@ class MainWindow(QMainWindow):
         self.feed.setAlignment(Qt.AlignCenter)
         camera_layout.addWidget(self.feed)
 
-        main_title = QLabel(f'Connected to server at: {temp_ip}:{temp_port}')
-        main_title.setAlignment(Qt.AlignCenter)
-        main_title.setFont(QFont('Arial', 12))
+        self.connection_stat = QLabel(f'Connected to server at: N/A')
+        self.connection_stat.setAlignment(Qt.AlignCenter)
+        self.connection_stat.setFont(QFont('Arial', 12))
         layout.addLayout(top_layout)
         layout.addLayout(camera_layout)
-        layout.addWidget(main_title)
+        layout.addWidget(self.connection_stat)
 
         widget = QWidget()
         widget.setLayout(layout)
@@ -80,6 +78,8 @@ class MainWindow(QMainWindow):
     def update_ui(self, frame: np.ndarray):
         self.camera_frame.emit(frame)
         
+    def update_connection_info(self, ip: str, port: int):
+        self.connection_stat.setText(f'Connected to server at: {ip}:{port}')
         
 def runUI():
     app = QApplication(sys.argv)
