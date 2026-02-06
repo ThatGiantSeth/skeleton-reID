@@ -17,6 +17,8 @@ JOINT_RADIUS = 4
 CONFIDENCE_COLOR_THRESHOLD = 0.6
 CAPTURE_SIZE_KINECT = (512, 424)
 CAPTURE_SIZE_OTHERS = (640, 480)
+IP = "127.0.0.1"
+PORT = 5555
 
 # most of this code taken from a provided OpenNI/NiTE example file, modified to use the UI instead of the original OpenCV window
 def draw_limb(img, ut, j1, j2, col):
@@ -149,25 +151,65 @@ class SkeletonGrabber(QObject):
         ## preprocess batch
         batch = normalize_skeleton(batch)
         print(f"Batch shape is {batch.shape}")
+        
+class ServerHandler(QObject):
+    connection_ready = pyqtSignal(str, int)
+    connection_lost = pyqtSignal()
+    
+    def __init__(self, ip, port):
+        super().__init__()
+        self.ip = ip
+        self.port = port
+        
+    
+    async def connect(self):
+        while True:
+            print("Trying connection:")
+            try:
+                self.reader, self.writer = await asyncio.wait_for(asyncio.open_connection(self.ip, self.port), timeout = 5)
+                print(f"Successfully connected to server at {self.ip}:{self.port}")
+                self.connection_ready.emit(self.ip, self.port)
+                await self.listen(self.reader)
+                self.writer.close()
+            except (asyncio.TimeoutError,ConnectionRefusedError, OSError) as e:
+                print(f"Unable to connect to server. Will retry in 5 seconds.\n{e}")
+            await asyncio.sleep(5)
+                
+    async def listen(self, reader):
+        while True:
+            try:
+                data = await asyncio.wait_for(reader.read(4096), timeout=3)
+            except asyncio.TimeoutError:
+                continue
+            
+            if data == b"":
+                # connection closed
+                print("Connection closed by server.")
+                self.connection_lost.emit()
+                break
+        
+        
 
 def main():
+    
     # start the UI
     app = QApplication(sys.argv)
     loop = QEventLoop(app)
     asyncio.set_event_loop(loop)
+    
     ui = MainWindow()
     ui.show()
+    
+    # connect to server
+    # pretend theres server code here
+    server = ServerHandler(IP, PORT)
+    server.connection_ready.connect(ui.update_connection_info)
+    loop.create_task(server.connect())
+    server.connection_lost.connect(ui.update_connection_info)
     
     skeleton_grabber = SkeletonGrabber(ui)
     skeleton_grabber.frame_ready.connect(ui.update_ui)
     skeleton_grabber.skeleton_ready.connect(skeleton_grabber.send_skeleton_data)
-    
-    
-    # pretend theres server code here
-    ip = "192.168.168.2"
-    port = 5555
-    print(f"Connected to pretend server at {ip}:{port}")
-    ui.update_connection_info(ip, port)
     
     app.aboutToQuit.connect(close_capture_device)
 

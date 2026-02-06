@@ -61,7 +61,7 @@ class MainWindow(QMainWindow):
         self.feed.setAlignment(Qt.AlignCenter)
         camera_layout.addWidget(self.feed)
 
-        self.connection_stat = QLabel(f'Connected to server at: N/A')
+        self.connection_stat = QLabel('No server connection.')
         self.connection_stat.setAlignment(Qt.AlignCenter)
         self.connection_stat.setFont(QFont('Arial', 12))
         layout.addLayout(top_layout)
@@ -78,8 +78,11 @@ class MainWindow(QMainWindow):
     def update_ui(self, frame: np.ndarray):
         self.camera_frame.emit(frame)
         
-    def update_connection_info(self, ip: str, port: int):
-        self.connection_stat.setText(f'Connected to server at: {ip}:{port}')
+    def update_connection_info(self, ip = None, port: int = None):
+        if ip is None:
+            self.connection_stat.setText('No server connection.')
+        else:
+            self.connection_stat.setText(f'Connected to server at: {ip}:{port}')
         
 def runUI():
     app = QApplication(sys.argv)
