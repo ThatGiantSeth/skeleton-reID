@@ -8,6 +8,7 @@ from PyQt5.QtWidgets import QApplication
 import asyncio
 from qasync import QEventLoop, asyncSlot
 from preprocessing import normalize_skeleton
+import struct
 
 from ui import MainWindow
 
@@ -145,21 +146,21 @@ class SkeletonGrabber(QObject):
     def update_ui(self):
         ## need to somehow make an async thread to send the data to the Pi so that it doesn't block frame updates once the streaming connection is implemented
         self.ui.update_ui(self.img)
-    
-    @asyncSlot(np.ndarray)
-    async def send_skeleton_data(self, batch):
-        ## preprocess batch
-        batch = normalize_skeleton(batch)
-        print(f"Batch shape is {batch.shape}")
         
 class ServerHandler(QObject):
     connection_ready = pyqtSignal(str, int)
     connection_lost = pyqtSignal()
+    result_ready = pyqtSignal(int, float)
     
     def __init__(self, ip, port):
         super().__init__()
         self.ip = ip
         self.port = port
+        self.queue = asyncio.Queue()
+        self.reader = None
+        self.writer = None
+        self.connected = False
+        self.request_id = 0
         
     
     async def connect(self):
@@ -169,16 +170,22 @@ class ServerHandler(QObject):
                 self.reader, self.writer = await asyncio.wait_for(asyncio.open_connection(self.ip, self.port), timeout = 5)
                 print(f"Successfully connected to server at {self.ip}:{self.port}")
                 self.connection_ready.emit(self.ip, self.port)
-                await self.listen(self.reader)
+                self.connected = True
+                await self.listen()
                 self.writer.close()
-            except (asyncio.TimeoutError,ConnectionRefusedError, OSError) as e:
+            except (asyncio.TimeoutError,ConnectionRefusedError, OSError, ConnectionResetError) as e:
                 print(f"Unable to connect to server. Will retry in 5 seconds.\n{e}")
+                self.connected = False
             await asyncio.sleep(5)
                 
-    async def listen(self, reader):
+    async def listen(self):
         while True:
             try:
-                data = await asyncio.wait_for(reader.read(4096), timeout=3)
+                data = await asyncio.wait_for(self.reader.readline(), timeout=3)
+                result = data.decode(encoding='utf-8').strip()
+                req_id, person_id, t = result.split(",")
+                self.result_ready.emit(int(person_id), float(t))
+                print(f"Debug output: id={req_id} person={person_id} t={t}")
             except asyncio.TimeoutError:
                 continue
             
@@ -186,8 +193,27 @@ class ServerHandler(QObject):
                 # connection closed
                 print("Connection closed by server.")
                 self.connection_lost.emit()
+                self.connected = False
                 break
-        
+          
+    @asyncSlot(np.ndarray)
+    async def send(self, batch):
+        if self.connected and self.writer is not None:
+            try:
+                self.request_id += 1
+                batch = normalize_skeleton(batch)
+                batch = np.ascontiguousarray(batch, dtype=np.float32)
+                data = batch.tobytes()
+                header = struct.pack('!I', self.request_id)
+
+                self.writer.write(header + data)
+                await self.writer.drain()
+                print(f"Sent batch of size {batch.shape} to server - Request ID: {self.request_id}")
+            except (ConnectionResetError, OSError):
+                print("Connection lost while sending data.")
+                self.writer = None
+                self.connected = False
+                self.connection_lost.emit()
         
 
 def main():
@@ -209,7 +235,8 @@ def main():
     
     skeleton_grabber = SkeletonGrabber(ui)
     skeleton_grabber.frame_ready.connect(ui.update_ui)
-    skeleton_grabber.skeleton_ready.connect(skeleton_grabber.send_skeleton_data)
+    skeleton_grabber.skeleton_ready.connect(server.send)
+    server.result_ready.connect(ui.update_results)
     
     app.aboutToQuit.connect(close_capture_device)
 

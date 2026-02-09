@@ -40,13 +40,25 @@ class MainWindow(QMainWindow):
         results_title = QLabel('Results')
         results_title.setAlignment(Qt.AlignCenter)
         results_title.setFont(QFont('Arial', 14))
+        self.result = QLabel('Predicted Person ID: N/A')
+        self.result.setAlignment(Qt.AlignCenter)
+        self.result.setFont(QFont('Arial', 12))
         results_layout.addWidget(results_title)
+        results_layout.addWidget(self.result)
         
         stats_layout = QVBoxLayout();
         stats_title = QLabel('Performance')
         stats_title.setAlignment(Qt.AlignCenter)
         stats_title.setFont(QFont('Arial', 14))
+        self.time_display = QLabel('Inference time: N/A')
+        self.time_display.setAlignment(Qt.AlignCenter)
+        self.time_display.setFont(QFont('Arial', 12))
+        fps_display = QLabel('FPS: N/A')
+        fps_display.setAlignment(Qt.AlignCenter)
+        fps_display.setFont(QFont('Arial', 12))
         stats_layout.addWidget(stats_title)
+        stats_layout.addWidget(self.time_display)
+        stats_layout.addWidget(fps_display)
         
         top_layout.addLayout(results_layout)
         top_layout.addLayout(stats_layout)
@@ -83,6 +95,9 @@ class MainWindow(QMainWindow):
             self.connection_stat.setText('No server connection.')
         else:
             self.connection_stat.setText(f'Connected to server at: {ip}:{port}')
+    def update_results(self, person_id, inference_time):
+        self.time_display.setText(f'Inference time: {inference_time:.3f} ms')
+        self.result.setText(f'Predicted Person ID: {person_id}')
         
 def runUI():
     app = QApplication(sys.argv)
