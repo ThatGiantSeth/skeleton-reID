@@ -53,14 +53,16 @@ class ClientHandler:
                 input_array = np.frombuffer(data, dtype=np.float32).reshape((50, 15, 3)).copy()
                 start_time = time.time()
                 person_id = identify_person(input_array, self.model)
-                end_time = time.time() - start_time
-                print(f"Identified person ID: {person_id} in {end_time:.4f} seconds")
+                end_time = (time.time() - start_time) * 1000
+                print(f"Identified person ID: {person_id} in {end_time:.1f} ms")
                 
                 response = f"{req_id},{person_id},{end_time}\n".encode(encoding='utf-8')
                 writer.write(response)
                 await writer.drain()
-            except (asyncio.TimeoutError, ConnectionResetError, asyncio.IncompleteReadError):
+            except asyncio.TimeoutError:
                 continue
+            except (ConnectionResetError, asyncio.IncompleteReadError):
+                break
         writer.close()
         await writer.wait_closed()
 

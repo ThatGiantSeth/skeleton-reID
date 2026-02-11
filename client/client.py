@@ -12,12 +12,11 @@ import struct
 
 from ui import MainWindow
 
-GRAY_COLOR = (64, 64, 64)
 LINE_THICKNESS = 3
 JOINT_RADIUS = 4
-CONFIDENCE_COLOR_THRESHOLD = 0.6
 CAPTURE_SIZE_KINECT = (512, 424)
 CAPTURE_SIZE_OTHERS = (640, 480)
+
 IP = "127.0.0.1"
 PORT = 5555
 
@@ -27,13 +26,13 @@ def draw_limb(img, ut, j1, j2, col):
     (x2, y2) = ut.convert_joint_coordinates_to_depth(j2.position.x, j2.position.y, j2.position.z)
 
     if (0.4 < j1.positionConfidence and 0.4 < j2.positionConfidence):
-        c = GRAY_COLOR if (min(j1.positionConfidence, j2.positionConfidence) < CONFIDENCE_COLOR_THRESHOLD) else col
+        c = (64, 64, 64) if (min(j1.positionConfidence, j2.positionConfidence) < 0.6) else col
         cv2.line(img, (int(x1), int(y1)), (int(x2), int(y2)), c, LINE_THICKNESS)
 
-        c = GRAY_COLOR if (j1.positionConfidence < CONFIDENCE_COLOR_THRESHOLD) else col
+        c = (64, 64, 64) if (j1.positionConfidence < 0.6) else col
         cv2.circle(img, (int(x1), int(y1)), JOINT_RADIUS, c, -1)
 
-        c = GRAY_COLOR if (j2.positionConfidence < CONFIDENCE_COLOR_THRESHOLD) else col
+        c = (64, 64, 64) if (j2.positionConfidence < 0.6) else col
         cv2.circle(img, (int(x2), int(y2)), JOINT_RADIUS, c, -1)
 
 
@@ -185,7 +184,7 @@ class ServerHandler(QObject):
                 result = data.decode(encoding='utf-8').strip()
                 req_id, person_id, t = result.split(",")
                 self.result_ready.emit(int(person_id), float(t))
-                print(f"Debug output: id={req_id} person={person_id} t={t}")
+                ## print(f"Debug output: id={req_id} person={person_id} t={t}")
             except asyncio.TimeoutError:
                 continue
             

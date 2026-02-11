@@ -96,7 +96,7 @@ class MainWindow(QMainWindow):
         else:
             self.connection_stat.setText(f'Connected to server at: {ip}:{port}')
     def update_results(self, person_id, inference_time):
-        self.time_display.setText(f'Inference time: {inference_time:.3f} ms')
+        self.time_display.setText(f'Inference time: {inference_time:.1f} ms')
         self.result.setText(f'Predicted Person ID: {person_id}')
         
 def runUI():
