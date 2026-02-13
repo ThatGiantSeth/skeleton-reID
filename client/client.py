@@ -21,9 +21,20 @@ IP = "127.0.0.1"
 PORT = 5555
 
 # most of this code taken from a provided OpenNI/NiTE example file, modified to use the UI instead of the original OpenCV window
-def draw_limb(img, ut, j1, j2, col):
-    (x1, y1) = ut.convert_joint_coordinates_to_depth(j1.position.x, j1.position.y, j1.position.z)
-    (x2, y2) = ut.convert_joint_coordinates_to_depth(j2.position.x, j2.position.y, j2.position.z)
+def joint_to_color_coords(ut, depth_stream, color_stream, joint):
+    (dx, dy) = ut.convert_joint_coordinates_to_depth(joint.position.x, joint.position.y, joint.position.z)
+    depth_x = int(round(dx))
+    depth_y = int(round(dy))
+    depth_z = int(round(joint.position.z))
+    (cx, cy) = openni2.convert_depth_to_color(depth_stream, color_stream, depth_x, depth_y, depth_z)
+    return (cx, cy)
+
+
+def draw_limb(img, ut, depth_stream, color_stream, j1, j2):
+    (x1, y1) = joint_to_color_coords(ut, depth_stream, color_stream, j1)
+    (x2, y2) = joint_to_color_coords(ut, depth_stream, color_stream, j2)
+    
+    col = (255, 0, 0)
 
     if (0.4 < j1.positionConfidence and 0.4 < j2.positionConfidence):
         c = (64, 64, 64) if (min(j1.positionConfidence, j2.positionConfidence) < 0.6) else col
@@ -36,7 +47,7 @@ def draw_limb(img, ut, j1, j2, col):
         cv2.circle(img, (int(x2), int(y2)), JOINT_RADIUS, c, -1)
 
 
-def draw_skeleton(img, ut, user, col):
+def draw_skeleton(img, ut, depth_stream, color_stream, user):
     for idx1, idx2 in [(nite2.JointType.NITE_JOINT_HEAD, nite2.JointType.NITE_JOINT_NECK),
                        # upper body
                        (nite2.JointType.NITE_JOINT_NECK, nite2.JointType.NITE_JOINT_LEFT_SHOULDER),
@@ -59,7 +70,7 @@ def draw_skeleton(img, ut, user, col):
                        # right leg
                        (nite2.JointType.NITE_JOINT_RIGHT_FOOT, nite2.JointType.NITE_JOINT_RIGHT_KNEE),
                        (nite2.JointType.NITE_JOINT_RIGHT_KNEE, nite2.JointType.NITE_JOINT_RIGHT_HIP)]:
-        draw_limb(img, ut, user.skeleton.joints[idx1], user.skeleton.joints[idx2], col)
+        draw_limb(img, ut, depth_stream, color_stream, user.skeleton.joints[idx1], user.skeleton.joints[idx2])
 
 # -------------------------------------------------------------
 # main program from here
@@ -102,6 +113,8 @@ class SkeletonGrabber(QObject):
                 "the error messages in the console. Model data "
                 "(s.dat, h.dat...) might be inaccessible.")
             sys.exit(-1)
+        self.depth_stream = self.dev.create_depth_stream()
+        self.depth_stream.start()
         self.color_stream = self.dev.create_color_stream()
         self.color_stream.start()
         
@@ -109,13 +122,16 @@ class SkeletonGrabber(QObject):
     
     def capture_skeleton(self):
         ut_frame = self.user_tracker.read_frame()
-
+        
+        depth_frame = self.depth_stream.read_frame()
         color_frame = self.color_stream.read_frame()
         color_frame_data = color_frame.get_buffer_as_uint8()
-        self.img = np.ndarray((color_frame.height, color_frame.width, 3), dtype=np.uint8,
-                            buffer=color_frame_data)
+        self.img = np.frombuffer(color_frame_data, dtype=np.uint8).copy()
+        self.img  = self.img.reshape((color_frame.height, color_frame.width, 3))
+        
         if self.use_kinect:
             self.img = self.img[0:self.img_h, 0:self.img_w]
+        
         self.img = cv2.cvtColor(self.img, cv2.COLOR_RGB2BGR)
         if ut_frame.users:
             for user in ut_frame.users:
@@ -123,8 +139,7 @@ class SkeletonGrabber(QObject):
                     print("new human id:{} detected.".format(user.id))
                     self.user_tracker.start_skeleton_tracking(user.id)
                 elif (user.state == nite2.UserState.NITE_USER_STATE_VISIBLE and user.skeleton.state == nite2.SkeletonState.NITE_SKELETON_TRACKED):
-                    draw_skeleton(self.img, self.user_tracker, user, (255, 0, 0))
-                    ## this logic needs to be changed to actually emit the skeleton data, and i need to figure out how to make it into batches of 50 to match window size
+                    draw_skeleton(self.img, self.user_tracker, self.depth_stream, self.color_stream, user)
                     
                     # Buffer skeleton data for server
                     joints = user.skeleton.joints
@@ -139,11 +154,16 @@ class SkeletonGrabber(QObject):
                         batch = np.array(self.skeleton_buffer)
                         self.skeleton_ready.emit(batch)
                         self.skeleton_buffer = []
-        
+            
+        ut_frame.close()
+        color_frame.close()
+        depth_frame.close()
+        del ut_frame
+        del color_frame
+        del depth_frame
         self.frame_ready.emit(self.img)
     
     def update_ui(self):
-        ## need to somehow make an async thread to send the data to the Pi so that it doesn't block frame updates once the streaming connection is implemented
         self.ui.update_ui(self.img)
         
 class ServerHandler(QObject):
@@ -164,7 +184,7 @@ class ServerHandler(QObject):
     
     async def connect(self):
         while True:
-            print("Trying connection:")
+            print(f"Looking for server on {self.ip}:{self.port}...")
             try:
                 self.reader, self.writer = await asyncio.wait_for(asyncio.open_connection(self.ip, self.port), timeout = 5)
                 print(f"Successfully connected to server at {self.ip}:{self.port}")
@@ -172,9 +192,10 @@ class ServerHandler(QObject):
                 self.connected = True
                 await self.listen()
                 self.writer.close()
-            except (asyncio.TimeoutError,ConnectionRefusedError, OSError, ConnectionResetError) as e:
-                print(f"Unable to connect to server. Will retry in 5 seconds.\n{e}")
+            except (asyncio.TimeoutError,ConnectionRefusedError, OSError, ConnectionResetError):
+                print(f"Unable to connect to server. Will retry in 5 seconds.")
                 self.connected = False
+                self.reader, self.writer = None, None
             await asyncio.sleep(5)
                 
     async def listen(self):
@@ -193,6 +214,7 @@ class ServerHandler(QObject):
                 print("Connection closed by server.")
                 self.connection_lost.emit()
                 self.connected = False
+                self.reader, self.writer = None, None
                 break
           
     @asyncSlot(np.ndarray)
@@ -210,7 +232,7 @@ class ServerHandler(QObject):
                 print(f"Sent batch of size {batch.shape} to server - Request ID: {self.request_id}")
             except (ConnectionResetError, OSError):
                 print("Connection lost while sending data.")
-                self.writer = None
+                self.writer, self.reader = None, None
                 self.connected = False
                 self.connection_lost.emit()
         
