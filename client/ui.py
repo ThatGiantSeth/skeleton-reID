@@ -53,12 +53,12 @@ class MainWindow(QMainWindow):
         self.time_display = QLabel('Inference time: N/A')
         self.time_display.setAlignment(Qt.AlignCenter)
         self.time_display.setFont(QFont('Arial', 12))
-        fps_display = QLabel('FPS: N/A')
-        fps_display.setAlignment(Qt.AlignCenter)
-        fps_display.setFont(QFont('Arial', 12))
+        self.total_latency_display = QLabel('Total latency: N/A')
+        self.total_latency_display.setAlignment(Qt.AlignCenter)
+        self.total_latency_display.setFont(QFont('Arial', 12))
         stats_layout.addWidget(stats_title)
         stats_layout.addWidget(self.time_display)
-        stats_layout.addWidget(fps_display)
+        stats_layout.addWidget(self.total_latency_display)
         
         top_layout.addLayout(results_layout)
         top_layout.addLayout(stats_layout)
@@ -95,9 +95,22 @@ class MainWindow(QMainWindow):
             self.connection_stat.setText('No server connection.')
         else:
             self.connection_stat.setText(f'Connected to server at: {ip}:{port}')
-    def update_results(self, person_id, inference_time):
-        self.time_display.setText(f'Inference time: {inference_time:.1f} ms')
-        self.result.setText(f'Predicted Person ID: {person_id}')
+
+    def update_results(self, person_id, inference_time, total_latency):
+        if inference_time is None:
+            self.time_display.setText(f'Inference time: N/A')
+        else:
+            self.time_display.setText(f'Inference time: {inference_time:.1f} ms')
+            
+        if total_latency is None:
+            self.total_latency_display.setText(f'Total latency: N/A')
+        else:
+            self.total_latency_display.setText(f'Total latency: {total_latency:.1f} ms')
+        
+        if person_id is None:
+            self.result.setText(f'Predicted Person ID: N/A')
+        else:
+            self.result.setText(f'Predicted Person ID: {person_id}')
         
 def runUI():
     app = QApplication(sys.argv)

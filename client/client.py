@@ -9,6 +9,7 @@ import asyncio
 from qasync import QEventLoop, asyncSlot
 from preprocessing import normalize_skeleton
 import struct
+import time
 
 from ui import MainWindow
 
@@ -169,7 +170,7 @@ class SkeletonGrabber(QObject):
 class ServerHandler(QObject):
     connection_ready = pyqtSignal(str, int)
     connection_lost = pyqtSignal()
-    result_ready = pyqtSignal(int, float)
+    result_ready = pyqtSignal(int, float, float)
     
     def __init__(self, ip, port):
         super().__init__()
@@ -180,6 +181,7 @@ class ServerHandler(QObject):
         self.writer = None
         self.connected = False
         self.request_id = 0
+        self.request_times = {}
         
     
     async def connect(self):
@@ -204,7 +206,12 @@ class ServerHandler(QObject):
                 data = await asyncio.wait_for(self.reader.readline(), timeout=3)
                 result = data.decode(encoding='utf-8').strip()
                 req_id, person_id, t = result.split(",")
-                self.result_ready.emit(int(person_id), float(t))
+                req_id = int(req_id)
+                total_latency_ms = None
+                start_time = self.request_times.pop(req_id, None)
+                if start_time is not None:
+                    total_latency_ms = (time.perf_counter() - start_time) * 1000.0
+                self.result_ready.emit(int(person_id), float(t), total_latency_ms)
                 ## print(f"Debug output: id={req_id} person={person_id} t={t}")
             except asyncio.TimeoutError:
                 continue
@@ -222,6 +229,7 @@ class ServerHandler(QObject):
         if self.connected and self.writer is not None:
             try:
                 self.request_id += 1
+                self.request_times[self.request_id] = time.perf_counter()
                 batch = normalize_skeleton(batch)
                 batch = np.ascontiguousarray(batch, dtype=np.float32)
                 data = batch.tobytes()

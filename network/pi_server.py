@@ -51,9 +51,9 @@ class ClientHandler:
                 data = await reader.readexactly(payload_size)
                 # Assuming data is received as a numpy array serialized in bytes
                 input_array = np.frombuffer(data, dtype=np.float32).reshape((50, 15, 3)).copy()
-                start_time = time.time()
+                start_time = time.perf_counter()
                 person_id = identify_person(input_array, self.model)
-                end_time = (time.time() - start_time) * 1000
+                end_time = (time.perf_counter() - start_time) * 1000
                 print(f"Identified person ID: {person_id} in {end_time:.1f} ms")
                 
                 response = f"{req_id},{person_id},{end_time}\n".encode(encoding='utf-8')
@@ -64,7 +64,10 @@ class ClientHandler:
             except (ConnectionResetError, asyncio.IncompleteReadError):
                 break
         writer.close()
-        await writer.wait_closed()
+        try:
+            await writer.wait_closed()
+        except ConnectionResetError:
+            pass
 
 def main():
     server = ClientHandler()
