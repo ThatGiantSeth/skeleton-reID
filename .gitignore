@@ -3,8 +3,12 @@ pi-sim/
 pi-sim2/
 primesense-py36/
 primesense-py-desktop/
+network-env/
 **/data/
 **/data_val/
+**/data_split/
+**/data_val_split/
+**/fold_models/
 **.dll
 **.jar
 **.pdb

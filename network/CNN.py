@@ -10,7 +10,8 @@ class CNNet(nn.Module):
                  window_size=3,
                  out_channel=16,
                  num_class = 48,
-                 drop_prob = 0.5
+                 drop_prob = 0.5,
+                 device='cuda'
                  ):
         super(CNNet, self).__init__()
         
