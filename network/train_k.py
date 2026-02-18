@@ -4,6 +4,7 @@ import torch.nn as nn
 import torch.optim as optim
 from sklearn.model_selection import StratifiedKFold
 import os
+import json
 
 from preprocessing import get_arrays, normalize_skeleton
 
@@ -54,6 +55,9 @@ def main():
     
     # get training data and create dataset
     train_arrays, train_labels, people = get_arrays("./data_split", trim_front=0)
+    
+    with open('people_map.json', 'w') as f:
+        json.dump(people, f, indent = 4)
     
     fold_models_dir = "fold_models"
     os.makedirs(fold_models_dir, exist_ok=True)

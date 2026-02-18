@@ -170,7 +170,7 @@ class SkeletonGrabber(QObject):
 class ServerHandler(QObject):
     connection_ready = pyqtSignal(str, int)
     connection_lost = pyqtSignal()
-    result_ready = pyqtSignal(int, float, float)
+    result_ready = pyqtSignal(str, float, float)
     
     def __init__(self, ip, port):
         super().__init__()
@@ -205,14 +205,14 @@ class ServerHandler(QObject):
             try:
                 data = await asyncio.wait_for(self.reader.readline(), timeout=3)
                 result = data.decode(encoding='utf-8').strip()
-                req_id, person_id, t = result.split(",")
+                req_id, person_name, t = result.split(",")
                 req_id = int(req_id)
                 total_latency_ms = None
                 start_time = self.request_times.pop(req_id, None)
                 if start_time is not None:
                     total_latency_ms = (time.perf_counter() - start_time) * 1000.0
-                self.result_ready.emit(int(person_id), float(t), total_latency_ms)
-                ## print(f"Debug output: id={req_id} person={person_id} t={t}")
+                self.result_ready.emit(str(person_name), float(t), total_latency_ms)
+                ## print(f"Debug output: id={req_id} person={person_name} t={t}")
             except asyncio.TimeoutError:
                 continue
             

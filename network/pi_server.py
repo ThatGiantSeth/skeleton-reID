@@ -4,6 +4,7 @@ import CNN as cnn
 import time
 import asyncio
 import struct
+import json
 
 from preprocessing import normalize_skeleton
 
@@ -37,6 +38,11 @@ class ClientHandler:
         self.model = classifier_model()
         self.model.load_state_dict(torch.load('./skeleton_model_best.pth', map_location='cpu'))
         self.model.eval()
+        self.people_backwards = {}
+        self.people = {}
+        with open('./people_map.json', 'r') as f:
+            self.people_backwards = json.load(f)
+        self.people = {v: k for k, v in self.people_backwards.items()}
         
     async def handle_client(self, reader, writer):
         print("Client connected.")
@@ -56,7 +62,9 @@ class ClientHandler:
                 end_time = (time.perf_counter() - start_time) * 1000
                 print(f"Identified person ID: {person_id} in {end_time:.1f} ms")
                 
-                response = f"{req_id},{person_id},{end_time}\n".encode(encoding='utf-8')
+                person_name = self.people.get(person_id, "Unknown")
+                
+                response = f"{req_id},{person_name},{end_time}\n".encode(encoding='utf-8')
                 writer.write(response)
                 await writer.drain()
             except asyncio.TimeoutError:

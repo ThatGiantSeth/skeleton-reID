@@ -16,3 +16,4 @@ NiTE.ini
 **/__pycache__
 **/**.pth
 openni/
+**/people_map.json

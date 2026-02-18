@@ -40,7 +40,7 @@ class MainWindow(QMainWindow):
         results_title = QLabel('Results')
         results_title.setAlignment(Qt.AlignCenter)
         results_title.setFont(QFont('Arial', 14))
-        self.result = QLabel('Predicted Person ID: N/A')
+        self.result = QLabel('Predicted Person: N/A')
         self.result.setAlignment(Qt.AlignCenter)
         self.result.setFont(QFont('Arial', 12))
         results_layout.addWidget(results_title)
@@ -108,9 +108,9 @@ class MainWindow(QMainWindow):
             self.total_latency_display.setText(f'Total latency: {total_latency:.1f} ms')
         
         if person_id is None:
-            self.result.setText(f'Predicted Person ID: N/A')
+            self.result.setText(f'Predicted Person: N/A')
         else:
-            self.result.setText(f'Predicted Person ID: {person_id}')
+            self.result.setText(f'Predicted Person: {person_id}')
         
 def runUI():
     app = QApplication(sys.argv)
