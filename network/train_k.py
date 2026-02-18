@@ -8,6 +8,8 @@ import json
 
 from preprocessing import get_arrays, normalize_skeleton
 
+## maybe make argument processor for these options for HPCs
+
 WINDOW_SIZE = 50
 STRIDE = 2
 EPOCHS = 30

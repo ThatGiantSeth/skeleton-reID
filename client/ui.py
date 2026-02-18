@@ -110,7 +110,7 @@ class MainWindow(QMainWindow):
         if person_id is None:
             self.result.setText(f'Predicted Person: N/A')
         else:
-            self.result.setText(f'Predicted Person: {person_id}')
+            self.result.setText(f'Predicted Person: {person_id.title()}')
         
 def runUI():
     app = QApplication(sys.argv)
