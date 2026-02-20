@@ -123,7 +123,7 @@ def window_sequence(x, y, window_size, stride, require_single_label=True):
         window_labels.append(int(y_window[0]))
 
     if not windows:
-        raise ValueError("No windows were created. Check window_size/stride or label continuity.")
+        raise ValueError("No windows were created.")
 
     windows = np.stack(windows, axis=0)
     window_labels = np.asarray(window_labels, dtype=np.int64)

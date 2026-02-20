@@ -43,11 +43,11 @@ class SkeletonDataset(torch.utils.data.Dataset):
 def main():
     
     # combine recordings
-    train_x, train_y, people = combine_recordings("./data", trim_front=0)
+    train_x, train_y, people = combine_recordings("./data", trim_front=499)
     train_x = normalize_skeleton(train_x)
     
     #window data
-    windows, window_labels = window_sequence(train_x, train_y, window_size=WINDOW_SIZE, stride=STRIDE, require_single_label=False)
+    windows, window_labels = window_sequence(train_x, train_y, window_size=WINDOW_SIZE, stride=STRIDE)
     print(f"Total training windows for k-fold: {len(windows)}")
     
     # save list of people
@@ -176,9 +176,9 @@ def main():
     
     # load and window separate test data
     test_dir = "./data_val"
-    test_x, test_y, _ = combine_recordings(test_dir, trim_front=0, people_map=people)
+    test_x, test_y, _ = combine_recordings(test_dir, trim_front=499, people_map=people)
     test_x = normalize_skeleton(test_x)
-    test_windows, test_window_labels = window_sequence(test_x, test_y, window_size=WINDOW_SIZE, stride=STRIDE, require_single_label=True)
+    test_windows, test_window_labels = window_sequence(test_x, test_y, window_size=WINDOW_SIZE, stride=STRIDE)
     print(f"Loaded {len(test_windows)} test windows")
     
     test_dataset = SkeletonDataset(test_windows, test_window_labels)
