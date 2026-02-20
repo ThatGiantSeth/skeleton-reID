@@ -6,8 +6,6 @@ primesense-py-desktop/
 network-env/
 **/data/
 **/data_val/
-**/data_split/
-**/data_val_split/
 **/fold_models/
 **.dll
 **.jar
