@@ -6,41 +6,30 @@ from sklearn.model_selection import StratifiedKFold
 import os
 import json
 
-from preprocessing import get_arrays, normalize_skeleton
+from preprocessing import combine_recordings, normalize_skeleton, window_sequence
 
 ## maybe make argument processor for these options for HPCs
 
-WINDOW_SIZE = 50
+WINDOW_SIZE = 10
 STRIDE = 2
-EPOCHS = 30
-LR = 0.0002
-K_FOLDS = 7
-DROP_PROB = 0.5
-BATCH_SIZE = 8
+EPOCHS = 50
+LR = 0.0008
+K_FOLDS = 10
+DROP_PROB = 0.4
+BATCH_SIZE = 32
+WEIGHT_DECAY = 1e-5
 
 # create custom dataset from recorded arrays
 class SkeletonDataset(torch.utils.data.Dataset):
-    def __init__(self, skeletons, labels, window_size=WINDOW_SIZE, stride=STRIDE, normalize=True):
+    def __init__(self, windows, labels):
         self.xdata = []
         self.ydata = []
 
-        for data, label in zip(skeletons, labels):
-            ## preprocessing
-            if normalize:
-                data = normalize_skeleton(data)
-
-            num_frames = data.shape[0]
-            
-            ## apply sliding window to the data when adding to the dataset
-            for window_start in range(0, num_frames - window_size + 1, stride):
-
-                window = data[window_start:window_start + window_size]
-                
-                tensor = torch.from_numpy(window).float()
-                tensor = tensor.permute(2, 0, 1)
-                
-                self.xdata.append(tensor)
-                self.ydata.append(label)
+        for window, label in zip(windows, labels):
+            tensor = torch.from_numpy(window).float()
+            tensor = tensor.permute(2, 0, 1)
+            self.xdata.append(tensor)
+            self.ydata.append(int(label))
         
         print(f"Created {len(self.xdata)} windows from data")
             
@@ -50,16 +39,18 @@ class SkeletonDataset(torch.utils.data.Dataset):
     def __getitem__(self, idx):
         return self.xdata[idx], self.ydata[idx]
 
-## training loss, training accuracy, validation accuracy all from each fold
-## test accuracy of best fold
-## try 10 fold + 5 fold
-
 ## main program
 def main():
     
-    # get training data and create dataset
-    train_arrays, train_labels, people = get_arrays("./data_split", trim_front=0)
+    # combine recordings
+    train_x, train_y, people = combine_recordings("./data", trim_front=499)
+    train_x = normalize_skeleton(train_x)
     
+    #window data
+    windows, window_labels = window_sequence(train_x, train_y, window_size=WINDOW_SIZE, stride=STRIDE)
+    print(f"Total training windows for k-fold: {len(windows)}")
+    
+    # save list of people
     with open('people_map.json', 'w') as f:
         json.dump(people, f, indent = 4)
     
@@ -74,29 +65,29 @@ def main():
     if device == "cuda":
         print(f"GPU: {torch.cuda.get_device_name(0)}")
     
-    num_classes = len(set(train_labels))
+    num_classes = len(people)
     
     fold_results = []
     best_overall_acc = 0.0
     best_model_file = "skeleton_model_best_k.pth"
     
     # Loop through each fold
-    for fold, (train_indices, val_indices) in enumerate(kfold.split(train_arrays, train_labels)):
+    for fold, (train_indices, val_indices) in enumerate(kfold.split(windows, window_labels)):
         print(f"\n{'='*50}")
         print(f"Fold {fold + 1}/{K_FOLDS}")
         print(f"{'='*50}")
         
         # Split samples into train and validation
-        fold_train_arrays = [train_arrays[i] for i in train_indices]
-        fold_train_labels = [train_labels[i] for i in train_indices]
-        fold_val_arrays = [train_arrays[i] for i in val_indices]
-        fold_val_labels = [train_labels[i] for i in val_indices]
+        fold_train_windows = windows[train_indices]
+        fold_train_labels = window_labels[train_indices]
+        fold_val_windows = windows[val_indices]
+        fold_val_labels = window_labels[val_indices]
         
-        print(f"Train samples: {len(fold_train_arrays)}, Val samples: {len(fold_val_arrays)}")
+        print(f"Train windows: {len(fold_train_windows)}, Val windows: {len(fold_val_windows)}")
         
         # Create datasets
-        train_dataset = SkeletonDataset(fold_train_arrays, fold_train_labels, window_size=WINDOW_SIZE, stride=STRIDE, normalize=True)
-        val_dataset = SkeletonDataset(fold_val_arrays, fold_val_labels, window_size=WINDOW_SIZE, stride=STRIDE, normalize=True)
+        train_dataset = SkeletonDataset(fold_train_windows, fold_train_labels)
+        val_dataset = SkeletonDataset(fold_val_windows, fold_val_labels)
         
         train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True, num_workers=0)
         val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False, num_workers=0)
@@ -108,16 +99,18 @@ def main():
         #CrossEntropyLoss: Combines LogSoftmax + NLLLoss.
         #SGD: Stochastic Gradient Descent with momentum. - would Adam be better? see Joe's example
         criterion = nn.CrossEntropyLoss()
-        optimizer = optim.SGD(net.parameters(), lr=LR, momentum=0.9, weight_decay=1e-4)
+        optimizer = optim.Adam(net.parameters(), lr=LR, weight_decay=WEIGHT_DECAY)
+        scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode="min", factor=0.5, patience=8, min_lr=1e-6)
         
         best_fold_acc = 0.0
+        fold_best_model_file = os.path.join(fold_models_dir, f"fold_{fold}_best.pth")
         
         # Training loop
         for epoch in range(EPOCHS):
             net.train()
-            print(f"  Epoch {epoch+1}/{EPOCHS}")
             
             running_loss = 0.0
+            num_batches = 0
             for i, data in enumerate(train_loader, 0):
                 inputs, labels = data
                 inputs, labels = inputs.to(device), labels.to(device)
@@ -126,31 +119,38 @@ def main():
                 outputs, _ = net(inputs)
                 loss = criterion(outputs, labels)
                 loss.backward()
+                torch.nn.utils.clip_grad_norm_(net.parameters(), max_norm=1.0)
                 optimizer.step()
                 
                 running_loss += loss.item()
-                if i % 50 == 49:
-                    print(f'    [{i + 1:5d}] loss: {running_loss / 50:.3f}')
-                    running_loss = 0.0
+                num_batches += 1
             
-            # Validate on this fold
-            fold_val_acc = validate(net, val_loader, criterion, device, epoch)
+            avg_train_loss = running_loss / max(num_batches, 1)
+
+            # get training accuracy
+            train_acc = evaluate_accuracy(net, train_loader, device)
+
+            # validate and get validation accuracy
+            fold_val_acc, fold_val_loss = validate(net, val_loader, criterion, device)
+            scheduler.step(fold_val_loss)
+
+            print(
+                f"Fold: {fold + 1}  Epoch: {epoch + 1}/{EPOCHS}  "
+                f"Train Accuracy: {train_acc:.2f}%  "
+                f"Validation Accuracy: {fold_val_acc:.2f}%  "
+                f"Train Loss: {avg_train_loss:.4f}  "
+                f"Validation Loss: {fold_val_loss:.4f}  "
+            )
             if fold_val_acc > best_fold_acc:
                 best_fold_acc = fold_val_acc
-                
-                # Save fold's best model
-                fold_model_file = os.path.join(fold_models_dir, f"fold_{fold}_best.pth")
-                torch.save(net.state_dict(), fold_model_file)
-                print(f"  Fold {fold + 1} best model saved: {best_fold_acc:.2f}%")
-                
-                # Save best overall model
-                if fold_val_acc > best_overall_acc:
-                    best_overall_acc = fold_val_acc
+                torch.save(net.state_dict(), fold_best_model_file)
+
+                if best_fold_acc > best_overall_acc:
+                    best_overall_acc = best_fold_acc
                     torch.save(net.state_dict(), best_model_file)
-                    print(f"  New overall best acc {best_overall_acc:.2f}% saved to {best_model_file}")
-        
+
         fold_results.append(best_fold_acc)
-        print(f"Fold {fold + 1} best accuracy: {best_fold_acc:.2f}%")
+        print(f"Fold {fold + 1} best validation accuracy: {best_fold_acc:.2f}%")
         
         # Print confusion matrix
         print(f"\nConfusion Matrix for Fold {fold + 1}:")
@@ -174,26 +174,48 @@ def main():
     net = CNNet(in_channel=3, num_joints=15, window_size=WINDOW_SIZE, num_class=num_classes, drop_prob=DROP_PROB).to(device)
     net.load_state_dict(torch.load(best_model_file, map_location=device))
     
-    # Load separate test data
-    test_arrays, test_labels, _ = get_arrays("./data_val_split", trim_front=0)
-    print(f"Loaded {len(test_arrays)} test samples")
+    # load and window separate test data
+    test_dir = "./data_val"
+    test_x, test_y, _ = combine_recordings(test_dir, trim_front=499, people_map=people)
+    test_x = normalize_skeleton(test_x)
+    test_windows, test_window_labels = window_sequence(test_x, test_y, window_size=WINDOW_SIZE, stride=STRIDE)
+    print(f"Loaded {len(test_windows)} test windows")
     
-    test_dataset = SkeletonDataset(test_arrays, test_labels, window_size=WINDOW_SIZE, stride=STRIDE, normalize=True)
+    test_dataset = SkeletonDataset(test_windows, test_window_labels)
     test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=BATCH_SIZE, shuffle=False, num_workers=0)
     
-    # Compute test accuracy
-    test_acc = validate(net, test_loader, criterion, device, epoch=0)
+    #get test accuracy
+    test_acc, test_loss = validate(net, test_loader, criterion, device)
     print(f"\nFinal Test Accuracy on data_val: {test_acc:.2f}%")
+    print(f"Final Test Loss on data_val: {test_loss:.4f}")
     
     # Print confusion matrix
     print("\nConfusion Matrix on Test Set (data_val):")
     print_confusion_matrix(net, test_loader, device, num_classes)
 
-## majority of this function also taken from PyTorch example
-def validate(net, val_loader, criterion, device, epoch):
+## majority of these validation functions also taken from PyTorch example
+def evaluate_accuracy(net, loader, device):
     net.eval()
     correct = 0
     total = 0
+
+    with torch.no_grad():
+        for inputs, labels in loader:
+            inputs, labels = inputs.to(device), labels.to(device)
+            outputs, _ = net(inputs)
+            _, predicted = torch.max(outputs.data, 1)
+            total += labels.size(0)
+            correct += (predicted == labels).sum().item()
+
+    return 100 * correct / max(total, 1)
+
+
+def validate(net, val_loader, criterion, device):
+    net.eval()
+    correct = 0
+    total = 0
+    running_loss = 0.0
+    num_batches = 0
     
     # since we're not training, we don't need to calculate the gradients for our outputs
     with torch.no_grad():
@@ -204,15 +226,17 @@ def validate(net, val_loader, criterion, device, epoch):
             # calculate outputs by running validation data through the network
             outputs, _ = net(inputs)
             loss = criterion(outputs, labels)
+            running_loss += loss.item()
+            num_batches += 1
             
             # the class with the highest energy is what we choose as prediction
             _, predicted = torch.max(outputs.data, 1)
             total += labels.size(0)
             correct += (predicted == labels).sum().item()
     
-    accuracy = 100 * correct / total
-    print(f'\nValidation - Epoch {epoch + 1} accuracy: {accuracy:.2f}%')
-    return accuracy
+    accuracy = 100 * correct / max(total, 1)
+    avg_loss = running_loss / max(num_batches, 1)
+    return accuracy, avg_loss
 
 #
 # copilot wrote this function on its own, i have no idea how it works, but it's only used for debugging and bias testing

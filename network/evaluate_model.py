@@ -5,7 +5,7 @@ import argparse
 import json
 import os
 
-from preprocessing_v2 import combine_recordings, normalize_skeleton, window_sequence
+from preprocessing import combine_recordings, normalize_skeleton, window_sequence
 
 ## copied from train_k_v2
 
