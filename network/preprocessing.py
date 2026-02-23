@@ -87,17 +87,17 @@ def combine_recordings(directory="./data", trim_front=499, people_map=None):
 
 
 def normalize_skeleton(data, root_joint=0, eps=1e-6):
-    # Center data around skeleton instead of physical space
+    #center data around skeleton instead of physical space
     root = data[:, root_joint, :][:, None, :]
     data = data - root
 
-    # Compute per-channel min/max for normalization
-    flat = data.reshape(-1, data.shape[2])  # (frames*joints, channels)
+    # get min/max for x,y,z
+    flat = data.reshape(-1, data.shape[2])
     channel_mins = flat.min(axis=0)
     channel_maxs = flat.max(axis=0)
     channel_range = np.maximum(channel_maxs - channel_mins, eps)
 
-    # Normalize x,y,z to [0,1]
+    # normalize x,y,z to [0,1]
     min_bc = channel_mins.reshape(1, 1, -1)
     range_bc = channel_range.reshape(1, 1, -1)
     data = (data - min_bc) / range_bc
@@ -105,7 +105,7 @@ def normalize_skeleton(data, root_joint=0, eps=1e-6):
     return data
 
 
-def window_sequence(x, y, window_size, stride, require_single_label=True):
+def window_sequence(x, y, window_size, stride):
     if x.shape[0] != y.shape[0]:
         raise ValueError("x and y must have the same number of frames")
 
@@ -116,7 +116,7 @@ def window_sequence(x, y, window_size, stride, require_single_label=True):
         x_window = x[window_start:window_start + window_size]
         y_window = y[window_start:window_start + window_size]
 
-        if require_single_label and np.any(y_window != y_window[0]):
+        if np.any(y_window != y_window[0]):
             continue
 
         windows.append(x_window)

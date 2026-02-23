@@ -1,6 +1,7 @@
 import sys
 import argparse
 from openni import openni2, nite2, utils
+from openni.utils import OpenNIError
 import numpy as np
 import cv2
 from PyQt5.QtCore import QTimer, QObject, pyqtSignal
@@ -23,29 +24,50 @@ PORT = 5555
 
 # most of this code taken from a provided OpenNI/NiTE example file, modified to use the UI instead of the original OpenCV window
 def joint_to_color_coords(ut, depth_stream, color_stream, joint):
+    if joint.positionConfidence <= 0.4:
+        return None
+
     (dx, dy) = ut.convert_joint_coordinates_to_depth(joint.position.x, joint.position.y, joint.position.z)
     depth_x = int(round(dx))
     depth_y = int(round(dy))
     depth_z = int(round(joint.position.z))
-    (cx, cy) = openni2.convert_depth_to_color(depth_stream, color_stream, depth_x, depth_y, depth_z)
+
+    depth_mode = depth_stream.get_video_mode()
+    if (depth_z <= 0 or
+        depth_x < 0 or depth_y < 0 or
+        depth_x >= depth_mode.resolutionX or depth_y >= depth_mode.resolutionY):
+        return None
+
+    try:
+        (cx, cy) = openni2.convert_depth_to_color(depth_stream, color_stream, depth_x, depth_y, depth_z)
+    except OpenNIError:
+        return None
+
     return (cx, cy)
 
 
 def draw_limb(img, ut, depth_stream, color_stream, j1, j2):
-    (x1, y1) = joint_to_color_coords(ut, depth_stream, color_stream, j1)
-    (x2, y2) = joint_to_color_coords(ut, depth_stream, color_stream, j2)
+    if not (0.4 < j1.positionConfidence and 0.4 < j2.positionConfidence):
+        return
+
+    p1 = joint_to_color_coords(ut, depth_stream, color_stream, j1)
+    p2 = joint_to_color_coords(ut, depth_stream, color_stream, j2)
+    if p1 is None or p2 is None:
+        return
+
+    (x1, y1) = p1
+    (x2, y2) = p2
     
     col = (255, 0, 0)
 
-    if (0.4 < j1.positionConfidence and 0.4 < j2.positionConfidence):
-        c = (64, 64, 64) if (min(j1.positionConfidence, j2.positionConfidence) < 0.6) else col
-        cv2.line(img, (int(x1), int(y1)), (int(x2), int(y2)), c, LINE_THICKNESS)
+    c = (64, 64, 64) if (min(j1.positionConfidence, j2.positionConfidence) < 0.6) else col
+    cv2.line(img, (int(x1), int(y1)), (int(x2), int(y2)), c, LINE_THICKNESS)
 
-        c = (64, 64, 64) if (j1.positionConfidence < 0.6) else col
-        cv2.circle(img, (int(x1), int(y1)), JOINT_RADIUS, c, -1)
+    c = (64, 64, 64) if (j1.positionConfidence < 0.6) else col
+    cv2.circle(img, (int(x1), int(y1)), JOINT_RADIUS, c, -1)
 
-        c = (64, 64, 64) if (j2.positionConfidence < 0.6) else col
-        cv2.circle(img, (int(x2), int(y2)), JOINT_RADIUS, c, -1)
+    c = (64, 64, 64) if (j2.positionConfidence < 0.6) else col
+    cv2.circle(img, (int(x2), int(y2)), JOINT_RADIUS, c, -1)
 
 
 def draw_skeleton(img, ut, depth_stream, color_stream, user):
@@ -98,7 +120,7 @@ class SkeletonGrabber(QObject):
         self.dev = init_capture_device()
         self.img = None
         self.skeleton_buffer = []
-        self.buffer_size = 50
+        self.buffer_size = 10
 
         dev_name = self.dev.get_device_info().name.decode('UTF-8')
         print("Device Name: {}".format(dev_name))
@@ -118,6 +140,13 @@ class SkeletonGrabber(QObject):
         self.depth_stream.start()
         self.color_stream = self.dev.create_color_stream()
         self.color_stream.start()
+
+        try:
+            if self.dev.is_image_registration_mode_supported(openni2.IMAGE_REGISTRATION_DEPTH_TO_COLOR):
+                self.dev.set_image_registration_mode(openni2.IMAGE_REGISTRATION_DEPTH_TO_COLOR)
+            self.dev.set_depth_color_sync_enabled(True)
+        except OpenNIError:
+            pass
         
         (self.img_w, self.img_h) = CAPTURE_SIZE_KINECT if self.use_kinect else CAPTURE_SIZE_OTHERS
     

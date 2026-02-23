@@ -42,7 +42,7 @@ class SkeletonDataset(torch.utils.data.Dataset):
 ## main program
 def main():
     
-    # combine recordings
+    # combine recordings and normalize
     train_x, train_y, people = combine_recordings("./data", trim_front=499)
     train_x = normalize_skeleton(train_x)
     
@@ -66,10 +66,12 @@ def main():
         print(f"GPU: {torch.cuda.get_device_name(0)}")
     
     num_classes = len(people)
+    class_names = [f"class_{i}" for i in range(num_classes)]
+    for person_name, class_idx in people.items():
+        if 0 <= class_idx < num_classes:
+            class_names[class_idx] = person_name
     
     fold_results = []
-    best_overall_acc = 0.0
-    best_model_file = "skeleton_model_best_k.pth"
     
     # Loop through each fold
     for fold, (train_indices, val_indices) in enumerate(kfold.split(windows, window_labels)):
@@ -145,16 +147,12 @@ def main():
                 best_fold_acc = fold_val_acc
                 torch.save(net.state_dict(), fold_best_model_file)
 
-                if best_fold_acc > best_overall_acc:
-                    best_overall_acc = best_fold_acc
-                    torch.save(net.state_dict(), best_model_file)
-
         fold_results.append(best_fold_acc)
         print(f"Fold {fold + 1} best validation accuracy: {best_fold_acc:.2f}%")
         
         # Print confusion matrix
         print(f"\nConfusion Matrix for Fold {fold + 1}:")
-        print_confusion_matrix(net, val_loader, device, num_classes)
+        print_confusion_matrix(net, val_loader, device, num_classes, class_names=class_names)
     
     # Print summary
     print(f"\n{'='*50}")
@@ -164,34 +162,35 @@ def main():
         print(f"Fold {fold + 1}: {acc:.2f}%")
     print(f"Mean Accuracy: {sum(fold_results) / len(fold_results):.2f}%")
     print(f"Best Accuracy: {max(fold_results):.2f}%")
-    print(f"\nBest model saved to {best_model_file}")
     
     print(f"\n{'='*50}")
     print("Final Model Evaluation on Test Set:")
     print(f"{'='*50}")
-    
-    # Create CNN
-    net = CNNet(in_channel=3, num_joints=15, window_size=WINDOW_SIZE, num_class=num_classes, drop_prob=DROP_PROB).to(device)
-    net.load_state_dict(torch.load(best_model_file, map_location=device))
     
     # load and window separate test data
     test_dir = "./data_val"
     test_x, test_y, _ = combine_recordings(test_dir, trim_front=499, people_map=people)
     test_x = normalize_skeleton(test_x)
     test_windows, test_window_labels = window_sequence(test_x, test_y, window_size=WINDOW_SIZE, stride=STRIDE)
-    print(f"Loaded {len(test_windows)} test windows")
     
     test_dataset = SkeletonDataset(test_windows, test_window_labels)
     test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=BATCH_SIZE, shuffle=False, num_workers=0)
     
     #get test accuracy
-    test_acc, test_loss = validate(net, test_loader, criterion, device)
-    print(f"\nFinal Test Accuracy on data_val: {test_acc:.2f}%")
-    print(f"Final Test Loss on data_val: {test_loss:.4f}")
-    
-    # Print confusion matrix
-    print("\nConfusion Matrix on Test Set (data_val):")
-    print_confusion_matrix(net, test_loader, device, num_classes)
+    for fold in range(K_FOLDS):
+        # Create CNN
+        model = os.path.join(fold_models_dir, f"fold_{fold}_best.pth");
+        net = CNNet(in_channel=3, num_joints=15, window_size=WINDOW_SIZE, num_class=num_classes, drop_prob=DROP_PROB).to(device)
+        net.load_state_dict(torch.load(model, map_location=device))
+        
+        # evaluate accuracy
+        test_acc, test_loss = validate(net, test_loader, criterion, device)
+        print(f"\nTest Accuracy on data_val for fold {fold}: {test_acc:.2f}%")
+        print(f"Final Test Loss on data_val for fold {fold}: {test_loss:.4f}")
+        
+        # Print confusion matrix
+        print(f"\nConfusion Matrix on Test Set (data_val) for fold {fold}:")
+        print_confusion_matrix(net, test_loader, device, num_classes, class_names=class_names)
 
 ## majority of these validation functions also taken from PyTorch example
 def evaluate_accuracy(net, loader, device):
@@ -241,22 +240,23 @@ def validate(net, val_loader, criterion, device):
 #
 # copilot wrote this function on its own, i have no idea how it works, but it's only used for debugging and bias testing
 #
-def print_confusion_matrix(net, val_loader, device, num_classes):
-    """Compute and print a confusion matrix to spot class bias."""
+def print_confusion_matrix(net, val_loader, device, num_classes, class_names=None):
     net.eval()
-    conf = torch.zeros((num_classes, num_classes), dtype=torch.int64)
+    conf = torch.zeros((num_classes, num_classes), dtype=torch.int64, device=device)
+
+    if class_names is None:
+        class_names = [f"class_{i}" for i in range(num_classes)]
+
     with torch.no_grad():
         for inputs, labels in val_loader:
             inputs, labels = inputs.to(device), labels.to(device)
             outputs, _ = net(inputs)
-            preds = outputs.argmax(dim=1)
-            for t, p in zip(labels.view(-1), preds.view(-1)):
-                conf[t.long(), p.long()] += 1
+            _, predicted = torch.max(outputs, 1)
 
-    # try to recover class names from the label mapping used in training
-    # by looking at the dataset folder names; fallback to indices
-    # Note: we assume the mapping in get_arrays was alphabetical by filename order
-    class_names = [f"class_{i}" for i in range(num_classes)]
+            labels_flat = labels.view(-1).long()
+            predicted_flat = predicted.view(-1).long()
+            flat_indices = labels_flat * num_classes + predicted_flat
+            conf += torch.bincount(flat_indices, minlength=num_classes * num_classes).reshape(num_classes, num_classes)
 
     print("Confusion matrix (rows=true, cols=pred):")
     header = ["true/pred"] + class_names
@@ -265,7 +265,7 @@ def print_confusion_matrix(net, val_loader, device, num_classes):
     for idx, row in enumerate(conf_np):
         rows.append([class_names[idx]] + row.tolist())
 
-    # pretty print as a simple table
+    # print results as a table
     col_widths = [max(len(str(x)) for x in col) for col in zip(*([header] + rows))]
     def fmt_row(r):
         return " | ".join(str(x).ljust(w) for x, w in zip(r, col_widths))

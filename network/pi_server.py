@@ -6,9 +6,7 @@ import asyncio
 import struct
 import json
 
-from preprocessing import normalize_skeleton
-
-window = 50
+window = 10
 joints = 15
 
 def classifier_model():
@@ -21,8 +19,8 @@ def identify_person(numpy_array, model):
     Normalizes the input data and returns the identified person name.
     """
     
-    if numpy_array.shape != (50, 15, 3):
-        raise ValueError("Input numpy array must have shape (50, 15, 3)")
+    if numpy_array.shape != (window, joints, 3):
+        raise ValueError(f"Input numpy array must have shape ({window}, {joints}, 3)")
     
     tensor = torch.from_numpy(numpy_array).float()
     tensor = tensor.permute(2, 0, 1).unsqueeze(0)  # Shape: (1, 3, 50, 15)
@@ -46,7 +44,7 @@ class ClientHandler:
         
     async def handle_client(self, reader, writer):
         print("Client connected.")
-        payload_size = 50 * 15 * 3 * 4
+        payload_size = window * joints * 3 * 4
         while True:
             try:
                 header = await asyncio.wait_for(reader.readexactly(4), timeout=5)
@@ -56,7 +54,7 @@ class ClientHandler:
 
                 data = await reader.readexactly(payload_size)
                 # Assuming data is received as a numpy array serialized in bytes
-                input_array = np.frombuffer(data, dtype=np.float32).reshape((50, 15, 3)).copy()
+                input_array = np.frombuffer(data, dtype=np.float32).reshape((window, joints, 3)).copy()
                 start_time = time.perf_counter()
                 person_id = identify_person(input_array, self.model)
                 end_time = (time.perf_counter() - start_time) * 1000
