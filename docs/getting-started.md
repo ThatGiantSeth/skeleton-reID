@@ -4,10 +4,16 @@
 > [!important] 
 > Because this project requires specific Python versions for different components, it is **highly recommended** to use virtual environments to compartmentalize your client/server/training packages and versions. We will be using example environment names throughout this guide that match their associated script e.g. `client-env`, `server-env`, and `training-env`. If you do not want to use virtual environments you can skip this section, but the rest of this guide will be more confusing.
 
+### Python Install Manager
+This guide assumes that you do not have a version of Python already installed. However, even if you do have it installed, Python Install Manager is recommended to keep track of multiple versions.
+
+Python Install Manager can be downloaded from the top of the Python downloads page: https://www.python.org/downloads/
+![Python Install Manager download](./assets/pim-installer.jpg)
+
 ## Recording script
 
 ## Training Script
-The training script `network/train.py` takes in a set of NumPy arrays containing skeleton data, normalizes them, and trains a CNN `network/CNN.py` on this data.
+The training script `network/train.py` takes in a set of NumPy arrays containing skeleton data, normalizes them, and trains a CNN `network/CNN.py` on this data. It outputs a file `skeleton_model_best.pth`.
 ### Input data
 The CNN is set up to accept skeleton data consisting of 3D world coordinates from an OpenNI-compatible camera like PrimeSense Carmine 1.09 or Microsoft Kinect 360. Any OpenNI camera will work, but the same camera should be used for both training and demonstration for coordinate system consistency. 
 The script searches for `.npy` files in a directory called `data`, located within the script's directory (`./network` by default). The files must be named `<person-name>_xxxxxxxx.npy`. If the files were recorded using the provided recording script, they should already have this format. Anything after the first underscore is ignored.
