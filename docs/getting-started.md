@@ -10,6 +10,8 @@ This guide assumes that you do not have a version of Python already installed. H
 Python Install Manager can be downloaded from the top of the Python downloads page: https://www.python.org/downloads/
 ![Python Install Manager download](./assets/pim-installer.jpg)
 
+
+
 ## Recording script
 
 ## Training Script
