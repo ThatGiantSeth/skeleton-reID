@@ -78,7 +78,7 @@ class ClientHandler:
 def main():
     server = ClientHandler()
     loop = asyncio.get_event_loop()
-    coro = asyncio.start_server(server.handle_client, '127.0.0.1', 5555)
+    coro = asyncio.start_server(server.handle_client, '0.0.0.0', 5555)
     server_instance = loop.run_until_complete(coro)
     print('Serving on {}'.format(server_instance.sockets[0].getsockname()))
     try:

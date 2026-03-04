@@ -19,7 +19,7 @@ JOINT_RADIUS = 4
 CAPTURE_SIZE_KINECT = (512, 424)
 CAPTURE_SIZE_OTHERS = (640, 480)
 
-IP = "127.0.0.1"
+IP = "seniordesign2.local"
 PORT = 5555
 
 # most of this code taken from a provided OpenNI/NiTE example file, modified to use the UI instead of the original OpenCV window
@@ -223,8 +223,8 @@ class ServerHandler(QObject):
                 self.connected = True
                 await self.listen()
                 self.writer.close()
-            except (asyncio.TimeoutError,ConnectionRefusedError, OSError, ConnectionResetError):
-                print(f"Unable to connect to server. Will retry in 5 seconds.")
+            except (asyncio.TimeoutError,ConnectionRefusedError, OSError, ConnectionResetError) as e:
+                print(f"Unable to connect to server. Will retry in 5 seconds. Error: {e}")
                 self.connected = False
                 self.reader, self.writer = None, None
             await asyncio.sleep(5)
