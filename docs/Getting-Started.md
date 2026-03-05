@@ -1,14 +1,15 @@
-
-
 > [!note] 
 > This guide was designed with a Windows client and a Raspberry Pi-based server in mind. These steps will vary on different operating systems.
 # Requirements
-> [!note] Python package requirements for each component will be discussed in their relevant sections
+> [!note]
+> Python package requirements for each component will be discussed in their relevant sections
 
 ### Before installing Python, see [Python Install Manager](#python-install-manager-pim) below.
 
 ## Training
-> [!tip] CUDA-enabled GPU is strongly recommended for training but not required
+> [!tip] 
+> CUDA-enabled GPU is strongly recommended for training but not required
+
 - ARM or x86-based machine
 - NVIDIA CUDA Toolkit (if using CUDA)
 - Any PyTorch-compatible version of Python
@@ -25,14 +26,17 @@
 - [OpenNi 2 from structure.io](https://web.archive.org/web/20250912105130/https://s3.amazonaws.com/com.occipital.openni/OpenNI-Windows-x64-2.2.0.33.zip)
 - [PrimeSense NiTE 2.2](https://web.archive.org/web/20260305002027/https://bitbucket.org/kaorun55/openni-2.2/raw/2f54272802bfd24ca32f03327fbabaf85ac4a5c4/NITE%202.2%20%CE%B1/NiTE-Windows-x64-2.2.zip)
 - Visual Studio 2022 (see [Visual Studio Requirements](#visual-studio-requirements) below)
-> [!warning] Do not use the version of OpenNI provided by the BitBucket repository hosting NiTE 2.2. It will not run properly. Use the version from structure.io linked above.
+
+> [!warning] 
+> Do not use the version of OpenNI provided by the BitBucket repository hosting NiTE 2.2. It will not run properly. Use the version from structure.io linked above.
 
 ## Server
 - ARM or x86-based machine (we used Raspberry Pi)
 - Any PyTorch-compatible version of Python
 
 ## Python Install Manager (PIM)
-> [!note] This section is only required on the Windows machine. We will assume for this guide that the Pi is dedicated to this purpose and only needs one Python installation.
+> [!note] 
+> This section is only required on the Windows machine. We will assume for this guide that the Pi is dedicated to this purpose and only needs one Python installation.
 
 This guide assumes that you do not have a version of Python already installed. However, even if you do have it installed, Python Install Manager is recommended to keep track of multiple versions.
 
@@ -40,8 +44,11 @@ This guide assumes that you do not have a version of Python already installed. H
 
 The installer may ask a series of questions depending on your current Python installation:
 - Do you want to edit app execution aliases? This option will open Settings > App execution aliases. If you previously installed Python, Windows will have set that installation as the default executable for the commands `python` and `python3`. PIM recommends that you switch this to its own `Python(default)` options, which will allow PIM to manage the default installation instead of Windows.
+  
 - If you had the legacy "Python Launcher" application installed, the PIM installer will warn you. PIM is a replacement for Python Launcher so it should be safe to uninstall it in most cases. This will prevent conflicts with the `py` command.
+
 - Do you want to add Python shortcuts to your PATH? This option adds version-specific shortcuts e.g. `python3.11.exe`, `python3.6.exe` to your system's environment variables. **This is required to use these commands directly in Windows CMD/PowerShell.** Otherwise, you will have to reference the absolute path to the Python executable e.g. `C:\Users\<user>\AppData\Local\Python\pythoncore-3.11`.
+
 - Do you want to install the latest Python runtime? If you already have a Python installation, you can skip this. We will be using PIM to install specific versions later anyway.
 
 See the [Python install docs](https://docs.python.org/3/using/windows.html#python-install-manager) for more information.
