@@ -1,5 +1,7 @@
-> [!note] 
-> This guide was designed with a Windows client and a Raspberry Pi-based server in mind. These steps will vary on different operating systems.
+# Notes
+- This guide was designed with a Windows client and a Raspberry Pi-based server in mind. These steps will vary on different operating systems.
+- This guide will make use of angle brackets `<>` to denote part of a command that is left up to the user, like a name. An example is a file path e.g. `C:\Users\<user>\Downloads`. In this case, you would replace `<user>` with your Windows username e.g. `C:\Users\johndoe\Downloads`. The angle brackets themselves are usually **not** included unless explicitly specified.
+
 # Requirements
 > [!note]
 > Python package requirements for each component will be discussed in their relevant sections
@@ -15,7 +17,7 @@
 - Any PyTorch-compatible version of Python
 
 > [!important]
-> See [PyTorch downloads](https://pytorch.org/get-started/locally/) for currently supported CUDA and Python versions. It is important to install a version of CUDA that is supported by PyTorch. Otherwise, torch will use the CPU even if CUDA is installed.
+> See [PyTorch - Getting Started](https://pytorch.org/get-started/locally/) for currently supported CUDA and Python versions. It is important to install a version of CUDA that is supported by PyTorch. Otherwise, torch will use the CPU even if CUDA is installed.
 
 ## Client/Recording
 - x86-based machine
@@ -23,12 +25,15 @@
 - Windows 10 or 11
 - Python 3.6
 - [CMake v3.4.3](https://github.com/Kitware/CMake/releases/download/v3.4.3/cmake-3.4.3-win32-x86.exe)
-- [OpenNi 2 from structure.io](https://web.archive.org/web/20250912105130/https://s3.amazonaws.com/com.occipital.openni/OpenNI-Windows-x64-2.2.0.33.zip)
+- [OpenNI 2 from structure.io](https://web.archive.org/web/20250912105130/https://s3.amazonaws.com/com.occipital.openni/OpenNI-Windows-x64-2.2.0.33.zip)
 - [PrimeSense NiTE 2.2](https://web.archive.org/web/20260305002027/https://bitbucket.org/kaorun55/openni-2.2/raw/2f54272802bfd24ca32f03327fbabaf85ac4a5c4/NITE%202.2%20%CE%B1/NiTE-Windows-x64-2.2.zip)
 - Visual Studio 2022 (see [Visual Studio Requirements](#visual-studio-requirements) below)
 
 > [!warning] 
-> Do not use the version of OpenNI provided by the BitBucket repository hosting NiTE 2.2. It will not run properly. Use the version from structure.io linked above.
+> Many of these are specific versions for a reason:
+> - Do not use the version of OpenNI provided by the BitBucket repository hosting NiTE 2.2. It will not run properly. Use the version from structure.io linked above.
+> - You MUST use a version of CMake older than v3.5, otherwise some of your `pip` commands will fail.
+> - Trying to run the client on versions of Python > 3.6 will fail. This is due to the outdated `openni` bindings package using deprecated features.
 
 ## Server
 - ARM or x86-based machine (we used Raspberry Pi)
@@ -67,12 +72,110 @@ Download the Visual Studio Community Installer from [Microsoft's website](https:
 # Setup
 First we will set up the virtual environments, the training script, client and recording scripts (they share their dependencies so will use the same virtual environment), and finally the server.
 
+> [!tip]
+> If you've never used Linux/UNIX before, or at least not Linux and Windows in parallel, note that Windows uses **backslashes** `\` to denote paths e.g. `C:\Users\<user>\Downloads`, while Linux/UNIX filepaths use **forward slashes** `/` e.g. `/home/user/Downloads`. Keep this in mind when you are typing the commands from this guide.
+
+## Downloading the files
+
+There are two ways to get the files:
+
+1. (Recommended) You can use [Git](https://git-scm.com/install/) to clone the repository directly from the command line.
+2. You can also download the files directly from GitHub by navigating to the `<> Code` tab of the repository, clicking the green `<> Code` button in the top right next to the sidebar, and clicking `Download ZIP`. You'll need to extract this downloaded ZIP to the folder of your choice.
+
+### Using Git
+
+Start by navigating to the folder you want the repository to be placed inside:
+```sh
+cd <folder>
+```
+
+Note that the cloning process will create a folder of its own, so you don't need to create a new folder just to clone this repo. The next step is to clone the repo:
+```sh
+git clone https://github.com/ThatGiantSeth/skeleton-reID.git
+```
+
+This will create a folder called `skeleton-reID` that contains all of the files from this repository. Make sure to copy down this path for later, since it will be the general working folder for this project. Example: `C:\Users\<user>\skeleton-reID`
+
 ## Creating Python virtual environments
 > [!important] 
-> Because this project requires specific Python versions for different components, it is **highly recommended** to use virtual environments to compartmentalize your client/server/training packages and versions. We will be using example environment names throughout this guide that match their associated script e.g. `client-env`, `server-env`, and `training-env`. If you do not want to use virtual environments you can skip this section, but the rest of this guide will be more confusing.
+> Because this project requires specific Python versions for different components, it is **highly recommended** to use virtual environments to compartmentalize your client/server/training packages and versions. We will be using example environment names throughout this guide that match their associated script e.g. `client-env`, `server-env`, and `training-env`. If you do not want to use virtual environments you can skip them, but the rest of this guide will be a lot more confusing.
+
+In this section, we will create and set up virtual environments for the **training** and **client/recording** portions of this project, including needed Python packages. The Raspberry Pi has its own dedicated setup section ([put the section here]) since it is more involved. This will include creating the **server** virtual environment. 
+
+In general, the command to create a virtual environment is:
+```sh
+python -m venv <env-name>
+```
+
+However, it is important to note that `python` should sometimes be replaced with the specific version of Python you want to create an environment for e.g. `python3.6.exe` or `python3.11.exe`.
+
+### Training Environment
+Start by creating a new virtual environment with your PyTorch-compatible Python version. You can place this in whichever folder you prefer, but the most convenient location is in the root/base folder of the repository (`skeleton-reID`). An easy way to tell is that the root folder contains `README.md`. You will need to replace "python3.11" with the specific version you installed:
+```sh
+cd <root folder>
+
+python3.11.exe -m venv training-env
+```
+
+It may take several minutes for this command to complete. After it is done, we can begin installing the necessary packages. At this point, you will want to use your virtual environment instead of the default `python` for all commands related to the training script. **I will be using the identifier `<training-env>` to refer to wherever you created your virtual environment.**
+
+The first step is to update `pip`. Many Python installs ship with an outdated version of `pip` which caused issues for us in the past. `pip` can be updated with the command:
+```sh
+<training-env>\Scripts\python -m pip install --upgrade pip
+```
+
+> [!note]
+> For some reason, Linux and Windows use a different path for the location of the python binaries. Windows uses `<env>\Scripts\python`, while Linux uses `<env>/bin/python`. Keep this in mind if you are using an operating system other than Windows.
+
+Now that `pip` is up to date, we can install the required dependencies. Let's start by installing scikit-learn:
+```sh
+<training-env>\Scripts\pip install scikit-learn
+```
+
+#### If you have a CUDA-enabled GPU and you installed CUDA toolkit: 
+First go back to the [PyTorch Getting Started Page](https://pytorch.org/get-started/locally/) and select the options that match your OS and installed version of CUDA. This will provide a `pip install` command. Copy everything *after* `pip3` since we will be using the copy of `pip` from our virtual environment instead.
+
+![PyTorch Getting Started page with options selection](./assets/pytorchstart.jpg)
+
+Example command:
+```sh
+<training-env>\Scripts\pip install torch torchvision --index-url https://download.pytorch.org/whl/cu130
+```
+
+#### If you do not have a CUDA-enabled device and want to train on the CPU (much slower):
+```sh
+<training-env>\Scripts\pip install torch torchvision
+```
+
+### Client/Recording Environment
+Since the client and recording scripts share most of their dependencies, they can share an environment. Start by creating another virtual environment in the root folder just as you did above. However, this one MUST be created with Python 3.6:
+```sh
+python3.6.exe -m venv client-env
+```
+
+Similar to the training environment, I will refer to the location of this virtual environment with `<client-env>`. You also need to update `pip` for this environment:
+```sh
+<client-env>\Scripts\python -m pip install --upgrade pip
+```
+
+Now we can begin installing dependencies:
+```sh
+<client-env>\Scripts\pip install numpy openni qasync pyqt5
+```
+
+This will likely take a couple minutes to run. There is one more dependency that needs to be installed, but I separated it out because it is the most problematic. **Make sure that VS Code is properly installed as described above or this part WILL fail.** Also make sure that the specified version of CMake is installed.
+```sh
+<client-env>\Scripts\pip install opencv-python
+```
+
+If you get a big scary red error string, double check the requirements above and try restarting your computer to make sure that the installed programs are recognized by the terminal.
+
+If these commands all ran successfully, you have finished creating the client and training virtual environments! Remember, there is still one more (`server-env`), but it will be discussed in the Raspberry Pi section.
+
+## Recording Data
 
 ## Training Script
-The training script `network/train.py` takes in a set of NumPy arrays containing skeleton data, normalizes them, and trains a CNN `network/CNN.py` on this data. It outputs a file `skeleton_model_best.pth`.
+The training script `network/train.py` takes in a set of NumPy arrays containing skeleton data, normalizes them, and trains a CNN `network/CNN.py` on this data. It outputs a folder `fold_models/` containing the best model from each validation fold (see [section that doesn't exist yet]).
 ### Input data
 The CNN is set up to accept skeleton data consisting of 3D world coordinates from an OpenNI-compatible camera like PrimeSense Carmine 1.09 or Microsoft Kinect 360. Any OpenNI camera will work, but the same camera should be used for both training and demonstration for coordinate system consistency. 
 The script searches for `.npy` files in a directory called `data`, located within the script's directory (`./network` by default). The files must be named `<person-name>_xxxxxxxx.npy`. If the files were recorded using the provided recording script, they should already have this format. Anything after the first underscore is ignored.
@@ -81,9 +184,9 @@ The script searches for `.npy` files in a directory called `data`, located withi
 > The training script currently acquires its classes from the unique names associated with the files so that multiple samples can be provided per person (e.g. `person1_standing`, `person1_walking`). Therefore, it is probably a good idea to use more than just first names like we do in our example.
 
 ### Setting up the environment
-The training script requires any of the Python versions supported by PyTorch. As of this documentation, these are **Python 3.11 and newer**. We used Python 3.11 during our project.
+The training script requires any of the Python versions supported by PyTorch. As of this documentation, these are **Python 3.10 and newer**. We used Python 3.11 during our project.
 
-## Client and recording script
+## Client
 
 ## Server
 

@@ -13,7 +13,7 @@ from preprocessing import combine_recordings, normalize_skeleton, window_sequenc
 WINDOW_SIZE = 10
 STRIDE = 2
 EPOCHS = 50
-LR = 0.0008
+LR = 0.0005
 K_FOLDS = 10
 DROP_PROB = 0.4
 BATCH_SIZE = 32

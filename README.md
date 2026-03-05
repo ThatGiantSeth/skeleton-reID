@@ -6,5 +6,7 @@
 - [x] Implement k-fold validation
 - [ ] Write training and usage documentation
 - [ ] Create demo video
+- [ ] Fix issue where it will not track a user more than once per run
+- [ ] add argparse so that model and parameters can be changed at runtime
 - [x] Figure out how to match numbers to names
 - [ ] ~~Fix memory leak caused by NiTE2 Python bindings~~ - not possible within the scope of this project, requires editing NiTE itself

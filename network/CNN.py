@@ -17,28 +17,28 @@ class CNNet(nn.Module):
         
         self.conv_block1 = nn.Sequential(
             nn.Conv2d(in_channel,6,kernel_size=[2,2], padding='same'),
-            nn.Sigmoid(),
+            nn.LeakyReLU(),
             #nn.MaxPool2d(6),
             nn.BatchNorm2d(6),
         )
         
         self.conv_block2 = nn.Sequential(
             nn.Conv2d(6,9,kernel_size=[2,2], padding='same'),
-            nn.Sigmoid(),
+            nn.LeakyReLU(),
             #nn.MaxPool2d(9),
             nn.BatchNorm2d(9),
         )
         
         self.conv_block3 = nn.Sequential(
             nn.Conv2d(9,12,1),
-            nn.Sigmoid(),
+            nn.LeakyReLU(),
             #nn.MaxPool2d(12),
             nn.BatchNorm2d(12),
         )
 
         self.conv_block4 = nn.Sequential(
             nn.Conv2d(12,out_channel,1),
-            nn.Sigmoid(),
+            nn.LeakyReLU(),
             #nn.MaxPool2d(16),
             nn.BatchNorm2d(16),
         )
@@ -46,13 +46,13 @@ class CNNet(nn.Module):
         self.l1 = nn.Sequential(
             nn.Linear((out_channel*window_size*num_joints),512),
             nn.Dropout(drop_prob),
-            nn.Sigmoid(),
+            nn.LeakyReLU(),
             nn.Linear(512,128),
             nn.Dropout(drop_prob),
-            nn.Sigmoid(),
+            nn.LeakyReLU(),
             nn.Linear(128,64),
             nn.Dropout(drop_prob),
-            nn.Sigmoid(),
+            nn.LeakyReLU(),
             nn.Linear(64,num_class)
         )
         
