@@ -2,4 +2,4 @@
 Senior Design 2025-2026 -- Old Dominion University Vision Lab
 
 ### Wiki:
-- [Getting Started](./Getting-Started)
+- [Getting Started](./Initial-Setup)

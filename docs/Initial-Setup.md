@@ -1,6 +1,7 @@
 # Notes
 - This guide was designed with a Windows client and a Raspberry Pi-based server in mind. These steps will vary on different operating systems.
 - This guide will make use of angle brackets `<>` to denote part of a command that is left up to the user, like a name. An example is a file path e.g. `C:\Users\<user>\Downloads`. In this case, you would replace `<user>` with your Windows username e.g. `C:\Users\johndoe\Downloads`. The angle brackets themselves are usually **not** included unless explicitly specified.
+- After installing a new program, always restart your terminal so that it updates with the location of the newly installed app. Otherwise you may get `command <program> not recognized` even though you just installed it.
 
 # Requirements
 > [!note]
