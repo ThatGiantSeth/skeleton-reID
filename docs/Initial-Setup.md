@@ -13,7 +13,7 @@
 > [!tip] 
 > CUDA-enabled GPU is strongly recommended for training but not required
 
-- ARM or x86-based machine
+- aarch64 (ARM) or x86-based machine (32-bit ARM platforms will not work!)
 - NVIDIA CUDA Toolkit (if using CUDA)
 - Any PyTorch-compatible version of Python
 
@@ -37,8 +37,10 @@
 > - Trying to run the client on versions of Python > 3.6 will fail. This is due to the outdated `openni` bindings package using deprecated features.
 
 ## Server
-- ARM or x86-based machine (we used Raspberry Pi)
+- aarch64 or x86-based machine (we used a Raspberry Pi 4)
 - Any PyTorch-compatible version of Python
+- Ethernet cable (if you are running the server on a separate device)
+- Monitor, keyboard, and mouse (only needed during setup for the Pi)
 
 ## Python Install Manager (PIM)
 > [!note] 
