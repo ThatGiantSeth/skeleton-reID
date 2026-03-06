@@ -77,6 +77,15 @@ Then, update pip and install PyTorch like you did for the training environment:
 ```
 ```sh
 <server-env>/bin/pip install torch torchvision
-````
+```
+
+# Copying files
+Assuming you still have your WinSCP session open, the process of moving files to the Pi is as simple as dragging them from one half of the window to the other. However, it would be a good idea to create a folder to put the files in first. You can create a folder from WinSCP by clicking the `New` button above the right (remote) panel and choosing `Directory`. You can name it whatever you'd like.
+
+In the left panel, find your project folder and go into the `network` folder. You will need to copy over the following files to the folder you just created on the Pi:
+- CNN.py
+- pi_server.py
+
+Later on in the guide, you will need to copy some more files over to the Pi. The process is exactly the same as described here.
 
 ## [Running the System](./Running-The-System)
