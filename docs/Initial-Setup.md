@@ -116,7 +116,8 @@ However, it is important to note that `python` should sometimes be replaced with
 Start by creating a new virtual environment with your PyTorch-compatible Python version. You can place this in whichever folder you prefer, but the most convenient location is in the root/base folder of the repository (`skeleton-reID`). An easy way to tell is that the root folder contains `README.md`. You will need to replace "python3.11" with the specific version you installed:
 ```sh
 cd <root folder>
-
+```
+```sh
 python3.11.exe -m venv training-env
 ```
 
@@ -174,5 +175,16 @@ This will likely take a couple minutes to run. There is one more dependency that
 If you get a big scary red error string, double check the requirements above and try restarting your computer to make sure that the installed programs are recognized by the terminal.
 
 If these commands all ran successfully, you have finished creating the client and training virtual environments! Remember, there is still one more (`server-env`), but it will be discussed in the Raspberry Pi section.
+
+## Other setup tasks
+The `openni` bindings package tends to struggle to locate the NiTE installation. Therefore, you should copy the NiTE binaries into the `client` folder. By default, NiTE is installed to `C:\Program Files\PrimeSense\NiTE2`. You will want to copy all of the files inside the `Redist` folder directly into the `client` folder within the project. Files that should be copied:
+- NiTE2/ (directory)
+- NiTE.ini
+- NiTE2.dll
+- NiTE2.jni.dll
+- NiTE2.jni.pdb
+- NiTE2.pdb
+
+
 
 ## [Setting Up The Pi](./Pi-Setup)

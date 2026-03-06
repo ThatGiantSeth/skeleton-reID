@@ -56,8 +56,27 @@ After installing and running WinSCP, you should see a `Login` window. If the win
 - Before clicking `Login`, click `Save` and give the profile a name. You can also choose to save the password to avoid entering it again.
 - Finally, click `Login`. You may encounter another "unknown host key" warning, which you can accept as before.
 
-On the left, you should see the files on your main machine and on the right, the files on the Pi.
+On the left, you should see the files on your main machine and on the right, the files on the Pi. You now have remote access to the files on the Pi.
 
 # Setting up the Python virtual environment
+The first thing we will do with our remote access is set up a Python virtual environment just like in the first part of the guide. Some of the syntax will be different since we are working with a Linux-based system instead of Windows, but the process itself is the same. First, check which version of Python was installed by default with Raspberry Pi OS:
+```sh
+python --version
+```
 
-## [Put next Section Link Here](#)
+As long as you are using an up-to-date version of Raspberry Pi OS, this version should be compatible with PyTorch, but it is good to make sure.
+
+At this point you can create the virtual environment in the same way as before:
+```sh
+python -m venv server-env
+```
+
+Then, update pip and install PyTorch like you did for the training environment:
+```sh
+<server-env>/bin/python -m pip install --upgrade pip
+```
+```sh
+<server-env>/bin/pip install torch torchvision
+````
+
+## [Running the System](./Running-The-System)
