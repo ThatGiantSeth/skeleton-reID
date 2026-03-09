@@ -19,9 +19,6 @@ JOINT_RADIUS = 4
 CAPTURE_SIZE_KINECT = (512, 424)
 CAPTURE_SIZE_OTHERS = (640, 480)
 
-IP = "seniordesign2.local"
-PORT = 5555
-
 # most of this code taken from a provided OpenNI/NiTE example file, modified to use the UI instead of the original OpenCV window
 def joint_to_color_coords(ut, depth_stream, color_stream, joint):
     if joint.positionConfidence <= 0.4:
@@ -60,13 +57,13 @@ def draw_limb(img, ut, depth_stream, color_stream, j1, j2):
     
     col = (255, 0, 0)
 
-    c = (64, 64, 64) if (min(j1.positionConfidence, j2.positionConfidence) < 0.6) else col
+    c = (64, 64, 64) if (min(j1.positionConfidence, j2.positionConfidence) < 1.0) else col
     cv2.line(img, (int(x1), int(y1)), (int(x2), int(y2)), c, LINE_THICKNESS)
 
-    c = (64, 64, 64) if (j1.positionConfidence < 0.6) else col
+    c = (64, 64, 64) if (j1.positionConfidence < 1.0) else col
     cv2.circle(img, (int(x1), int(y1)), JOINT_RADIUS, c, -1)
 
-    c = (64, 64, 64) if (j2.positionConfidence < 0.6) else col
+    c = (64, 64, 64) if (j2.positionConfidence < 1.0) else col
     cv2.circle(img, (int(x2), int(y2)), JOINT_RADIUS, c, -1)
 
 
@@ -114,13 +111,13 @@ class SkeletonGrabber(QObject):
     frame_ready = pyqtSignal(np.ndarray)
     skeleton_ready = pyqtSignal(np.ndarray)
     
-    def __init__(self, ui):
+    def __init__(self, ui, buffer_size):
         super().__init__()
         self.ui = ui
         self.dev = init_capture_device()
         self.img = None
         self.skeleton_buffer = []
-        self.buffer_size = 10
+        self.buffer_size = buffer_size
 
         dev_name = self.dev.get_device_info().name.decode('UTF-8')
         print("Device Name: {}".format(dev_name))
@@ -167,6 +164,8 @@ class SkeletonGrabber(QObject):
             for user in ut_frame.users:
                 if user.is_new():
                     print("new human id:{} detected.".format(user.id))
+                if (user.state == nite2.UserState.NITE_USER_STATE_VISIBLE and
+                    user.skeleton.state != nite2.SkeletonState.NITE_SKELETON_TRACKED):
                     self.user_tracker.start_skeleton_tracking(user.id)
                 elif (user.state == nite2.UserState.NITE_USER_STATE_VISIBLE and user.skeleton.state == nite2.SkeletonState.NITE_SKELETON_TRACKED):
                     draw_skeleton(self.img, self.user_tracker, self.depth_stream, self.color_stream, user)
@@ -275,7 +274,15 @@ class ServerHandler(QObject):
         
 
 def main():
-    
+    parser = argparse.ArgumentParser(description='Skeleton ReID Client.')
+    parser.add_argument('-a', '--address', type=str, default="seniordesign2.local",
+                        help='Specify the IP address.')
+    parser.add_argument('-p', '--port', type=int, default=5555,
+                        help='Specify the port.')
+    parser.add_argument('-w', '--window_size', type=int, default=10,
+                        help='Specify the window size.')
+    args = parser.parse_args()
+
     # start the UI
     app = QApplication(sys.argv)
     loop = QEventLoop(app)
@@ -286,12 +293,12 @@ def main():
     
     # connect to server
     # pretend theres server code here
-    server = ServerHandler(IP, PORT)
+    server = ServerHandler(args.address, args.port)
     server.connection_ready.connect(ui.update_connection_info)
     loop.create_task(server.connect())
     server.connection_lost.connect(ui.update_connection_info)
     
-    skeleton_grabber = SkeletonGrabber(ui)
+    skeleton_grabber = SkeletonGrabber(ui, args.window_size)
     skeleton_grabber.frame_ready.connect(ui.update_ui)
     skeleton_grabber.skeleton_ready.connect(server.send)
     server.result_ready.connect(ui.update_results)

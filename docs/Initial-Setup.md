@@ -115,17 +115,17 @@ However, it is important to note that `python` should sometimes be replaced with
 ### Training Environment
 Start by creating a new virtual environment with your PyTorch-compatible Python version. You can place this in whichever folder you prefer, but the most convenient location is in the root/base folder of the repository (`skeleton-reID`). An easy way to tell is that the root folder contains `README.md`. You will need to replace "python3.11" with the specific version you installed:
 ```sh
-cd <root folder>
+cd <path/to/skeleton-reID>
 ```
 ```sh
 python3.11.exe -m venv training-env
 ```
 
-It may take several minutes for this command to complete. After it is done, we can begin installing the necessary packages. At this point, you will want to use your virtual environment instead of the default `python` for all commands related to the training script. **I will be using the identifier `<training-env>` to refer to wherever you created your virtual environment.**
+It may take several minutes for this command to complete. After it is done, we can begin installing the necessary packages. At this point, you will want to use your virtual environment instead of the default `python` for all commands related to the training script. **I will assume in the rest of the guide that your environments are located in the root folder and that you are using the same environment names.**
 
 The first step is to update `pip`. Many Python installs ship with an outdated version of `pip` which caused issues for us in the past. `pip` can be updated with the command:
 ```sh
-<training-env>\Scripts\python -m pip install --upgrade pip
+.\training-env\Scripts\python -m pip install --upgrade pip
 ```
 
 > [!note]
@@ -133,7 +133,7 @@ The first step is to update `pip`. Many Python installs ship with an outdated ve
 
 Now that `pip` is up to date, we can install the required dependencies. Let's start by installing scikit-learn:
 ```sh
-<training-env>\Scripts\pip install scikit-learn
+.\training-env\Scripts\pip install scikit-learn
 ```
 
 #### If you have a CUDA-enabled GPU and you installed CUDA toolkit: 
@@ -143,12 +143,12 @@ First go back to the [PyTorch Getting Started Page](https://pytorch.org/get-star
 
 Example command:
 ```sh
-<training-env>\Scripts\pip install torch torchvision --index-url https://download.pytorch.org/whl/cu130
+.\training-env\Scripts\pip install torch torchvision --index-url https://download.pytorch.org/whl/cu130
 ```
 
 #### If you do not have a CUDA-enabled device and want to train on the CPU (much slower):
 ```sh
-<training-env>\Scripts\pip install torch torchvision
+.\training-env\Scripts\pip install torch torchvision
 ```
 
 ### Client/Recording Environment
@@ -157,19 +157,19 @@ Since the client and recording scripts share most of their dependencies, they ca
 python3.6.exe -m venv client-env
 ```
 
-Similar to the training environment, I will refer to the location of this virtual environment with `<client-env>`. You also need to update `pip` for this environment:
+You also need to update `pip` for this environment:
 ```sh
-<client-env>\Scripts\python -m pip install --upgrade pip
+.\client-env\Scripts\python -m pip install --upgrade pip
 ```
 
 Now we can begin installing dependencies:
 ```sh
-<client-env>\Scripts\pip install numpy openni qasync pyqt5
+.\client-env\Scripts\pip install numpy openni qasync pyqt5
 ```
 
 This will likely take a couple minutes to run. There is one more dependency that needs to be installed, but I separated it out because it is the most problematic. **Make sure that VS Code is properly installed as described above or this part WILL fail.** Also make sure that the specified version of CMake is installed.
 ```sh
-<client-env>\Scripts\pip install opencv-python
+.\client-env\Scripts\pip install opencv-python
 ```
 
 If you get a big scary red error string, double check the requirements above and try restarting your computer to make sure that the installed programs are recognized by the terminal.

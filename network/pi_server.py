@@ -10,20 +10,15 @@ window = 10
 joints = 15
 
 def classifier_model():
-    model = cnn.CNNet(window_size=window, num_joints=joints, num_class=4, drop_prob=0.5)
+    model = cnn.CNNet(window_size=window, num_joints=joints, num_class=4, drop_prob=0.4)
     return model
 
 def identify_person(numpy_array, model):
-    """
-    Accepts a numpy array of shape (50, 15, 3) representing skeleton data for 50 frames, 15 joints, 3 coordinates.
-    Normalizes the input data and returns the identified person name.
-    """
-    
     if numpy_array.shape != (window, joints, 3):
         raise ValueError(f"Input numpy array must have shape ({window}, {joints}, 3)")
     
     tensor = torch.from_numpy(numpy_array).float()
-    tensor = tensor.permute(2, 0, 1).unsqueeze(0)  # Shape: (1, 3, 50, 15)
+    tensor = tensor.permute(2, 0, 1).unsqueeze(0)
     
     model.eval()
     with torch.no_grad():

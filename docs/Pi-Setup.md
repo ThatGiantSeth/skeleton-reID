@@ -17,7 +17,7 @@ There are a few more customizations we will want to perform before we make our P
 Since we won't need a desktop environment after this initial setup, we are going to disable booting to the desktop GUI. To do this, navigate to `Application Menu (Raspberry Icon) > Preferences > Raspberry Pi Configuration`. Under the `System` tab, switch the `Boot:` option from `to Desktop` to `to CLI`. In addition, if any of the `Auto Login` toggles are enabled, toggle them off for security. You'll need your password for remote access either way.
 
 ## Setting up a static IP address
- When we tried to set this up originally, we found that both SSH and our application had issues with the Pi changing its local IP address. Setting a static IP address for the Ethernet connection solves this problem. In order to do this, we will need to make use of the Pi's `nmtui` CLI interface. To access it, first open the Terminal (the icon is >_ in a black box) and type:
+ When we tried to set this up originally, we found that both SSH and our application had issues with the Pi changing its local IP address. Setting a static IP address for the Ethernet connection solves this problem. In order to do this, we will need to use the Pi's `nmtui` program. To access it, first open the Terminal (the icon is >_ in a black box) and type:
 ```sh
 nmtui
 ```
@@ -32,9 +32,9 @@ You can navigate this interface with your arrow keys and enter key. Navigate to 
 You can exit `nmtui` by selecting `<Back>` on the connection list and then `<Quit>`.
 
 # Setting up remote access
-It is more convenient to be able to control the Pi from your main machine, rather than having to plug in a separate monitor, keyboard, and mouse. Therefore, we will use SSH to control to the Pi over the Ethernet connection. However, the disadvantage is that SSH does not forward the desktop GUI, so we will be using the CLI from this point onwards. In addition, we will need a way to transfer files to the Pi.
+It is more convenient to be able to control the Pi from your main machine, rather than having to plug in a separate monitor, keyboard, and mouse. Therefore, we will use SSH (Secure SHell) to control to the Pi over the Ethernet connection. However, the disadvantage is that SSH does not forward the desktop GUI, so we will be using the CLI from this point onwards. In addition, we will need a way to transfer files to the Pi so we will install an SFTP (Secure File Transfer Protocol) client.
 
-The first step is to set up an SSH and SFTP client on your Windows machine. I recommend [PuTTY](https://www.chiark.greenend.org.uk/~sgtatham/putty/) for SSH and [WinSCP](https://winscp.net/eng/download.php) for SFTP.
+The first step is to set up an SSH and SFTP client on your Windows machine. I recommend [PuTTY](https://www.chiark.greenend.org.uk/~sgtatham/putty/latest.html) for SSH and [WinSCP](https://winscp.net/eng/download.php) for SFTP.
 
 ## Setting up PuTTY
 After installing and running PuTTY, you will see a `PuTTY Configuration` window. Here are the steps to setting up your session:
@@ -73,18 +73,27 @@ python -m venv server-env
 
 Then, update pip and install PyTorch like you did for the training environment:
 ```sh
-<server-env>/bin/python -m pip install --upgrade pip
+./server-env/bin/python -m pip install --upgrade pip
 ```
+> [!caution]
+> As of the creation of this guide, the current release of PyTorch (2.10.0) will not currently run on Raspberry Pi 4 and below! See [this issue](https://github.com/pytorch/pytorch/issues/174344) for more details. The current workaround is to use an older release of PyTorch. We used PyTorch 2.8.0:
+
 ```sh
-<server-env>/bin/pip install torch torchvision
+./server-env//bin/pip install numpy torch==2.8.0
 ```
+If you want to try the latest version, you can omit the `==2.8.0` but this is not recommended unless the issue above is solved.
 
 # Copying files
-Assuming you still have your WinSCP session open, the process of moving files to the Pi is as simple as dragging them from one half of the window to the other. However, it would be a good idea to create a folder to put the files in first. You can create a folder from WinSCP by clicking the `New` button above the right (remote) panel and choosing `Directory`. You can name it whatever you'd like.
+Assuming you still have your WinSCP session open, the process of moving files to the Pi is as simple as dragging them from one half of the window to the other. However, it would be a good idea to create a folder to put the files in first. You will want to create this folder in your home directory, which looks something like `/home/user/`. WinSCP should open to this folder by default. You can create a folder from WinSCP by clicking the `New` button above the right (remote) panel and choosing `Directory`. Name the new directory `skeleton_server`.
 
-In the left panel, find your project folder and go into the `network` folder. You will need to copy over the following files to the folder you just created on the Pi:
-- CNN.py
-- pi_server.py
+In the left panel, find your project folder and go into the `network` folder. You will need to copy over some of these files to the Pi:
+
+To your home folder:
+- `run_server.sh`
+
+To `skeleton_server`:
+- `CNN.py`
+- `pi_server.py`
 
 Later on in the guide, you will need to copy some more files over to the Pi. The process is exactly the same as described here.
 
