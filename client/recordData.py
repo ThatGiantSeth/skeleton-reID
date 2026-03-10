@@ -153,7 +153,7 @@ def capture_skeleton():
                     break    
                     
     skeleton_array = np.array(skeleton_frames)
-    np.save(f"{person}{type}{BATCH_SIZE}.npy", skeleton_array)
+    np.save(f"{person}_{type}{BATCH_SIZE}.npy", skeleton_array)
 
     end_time = time.perf_counter()
 

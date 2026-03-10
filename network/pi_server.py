@@ -1,3 +1,5 @@
+import argparse
+
 import torch
 import numpy as np
 import CNN as cnn
@@ -6,18 +8,23 @@ import asyncio
 import struct
 import json
 
+from preprocessing import normalize_skeleton
+
 window = 10
 joints = 15
 
-def classifier_model():
-    model = cnn.CNNet(window_size=window, num_joints=joints, num_class=4, drop_prob=0.4)
+def classifier_model(num_class):
+    model = cnn.CNNet(window_size=window, num_joints=joints, num_class=num_class, drop_prob=0.6)
     return model
 
-def identify_person(numpy_array, model):
-    if numpy_array.shape != (window, joints, 3):
+def identify_person(array, model, norm_stats=None):
+    if array.shape != (window, joints, 3):
         raise ValueError(f"Input numpy array must have shape ({window}, {joints}, 3)")
     
-    tensor = torch.from_numpy(numpy_array).float()
+    if norm_stats is not None:
+        array = normalize_skeleton(array, stats=norm_stats)
+
+    tensor = torch.from_numpy(array).float()
     tensor = tensor.permute(2, 0, 1).unsqueeze(0)
     
     model.eval()
@@ -27,14 +34,28 @@ def identify_person(numpy_array, model):
         return pred
 
 class ClientHandler:
-    def __init__(self):
-        self.model = classifier_model()
-        self.model.load_state_dict(torch.load('./skeleton_model_best.pth', map_location='cpu'))
-        self.model.eval()
+    def __init__(self, model_path, norm_stats_path):
         self.people_backwards = {}
         self.people = {}
+        self.norm_stats = None
         with open('./people_map.json', 'r') as f:
             self.people_backwards = json.load(f)
+
+        try:
+            with open(norm_stats_path, 'r') as f:
+                self.norm_stats = json.load(f)
+            print(f"Loaded normalization stats from {norm_stats_path}")
+        except FileNotFoundError:
+            print(f"Warning: normalization stats file not found at {norm_stats_path}. Running without fixed stats.")
+
+        num_class = len(self.people_backwards)
+        
+        print(f"Loaded {num_class} classes.")
+
+        self.model = classifier_model(num_class)
+        self.model.load_state_dict(torch.load(model_path, map_location='cpu'))
+        self.model.eval()
+
         self.people = {v: k for k, v in self.people_backwards.items()}
         
     async def handle_client(self, reader, writer):
@@ -51,7 +72,7 @@ class ClientHandler:
                 # Assuming data is received as a numpy array serialized in bytes
                 input_array = np.frombuffer(data, dtype=np.float32).reshape((window, joints, 3)).copy()
                 start_time = time.perf_counter()
-                person_id = identify_person(input_array, self.model)
+                person_id = identify_person(input_array, self.model, self.norm_stats)
                 end_time = (time.perf_counter() - start_time) * 1000
                 print(f"Identified person ID: {person_id} in {end_time:.1f} ms")
                 
@@ -71,9 +92,18 @@ class ClientHandler:
             pass
 
 def main():
-    server = ClientHandler()
+    parser = argparse.ArgumentParser(description='Skeleton ReID server.')
+    parser.add_argument('-a', '--address', type=str, default="*",
+                        help='Specify the IP address.')
+    parser.add_argument('-p', '--port', type=int, default=5555,
+                        help='Specify the port.')
+    parser.add_argument('-m', '--model', type=str, default='./skeleton_model_best.pth',
+                        help='Path to the model file.')
+    args = parser.parse_args()
+    
+    server = ClientHandler(args.model, './normalization_stats.json')
     loop = asyncio.get_event_loop()
-    coro = asyncio.start_server(server.handle_client, '*', 5555)
+    coro = asyncio.start_server(server.handle_client, args.address, args.port)
     server_instance = loop.run_until_complete(coro)
     print('Serving on {}'.format(server_instance.sockets[0].getsockname()))
     try:

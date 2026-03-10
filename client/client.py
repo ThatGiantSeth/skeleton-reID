@@ -8,7 +8,6 @@ from PyQt5.QtCore import QTimer, QObject, pyqtSignal
 from PyQt5.QtWidgets import QApplication
 import asyncio
 from qasync import QEventLoop, asyncSlot
-from preprocessing import normalize_skeleton
 import struct
 import time
 
@@ -258,7 +257,6 @@ class ServerHandler(QObject):
             try:
                 self.request_id += 1
                 self.request_times[self.request_id] = time.perf_counter()
-                batch = normalize_skeleton(batch)
                 batch = np.ascontiguousarray(batch, dtype=np.float32)
                 data = batch.tobytes()
                 header = struct.pack('!I', self.request_id)

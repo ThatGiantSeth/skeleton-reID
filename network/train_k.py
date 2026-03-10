@@ -6,18 +6,18 @@ from sklearn.model_selection import StratifiedKFold
 import os
 import json
 
-from preprocessing import combine_recordings, normalize_skeleton, window_sequence
+from preprocessing import combine_recordings, normalize_skeleton, window_sequence, compute_normalization_stats
 
 ## maybe make argument processor for these options for HPCs
 
 WINDOW_SIZE = 10
-STRIDE = 2
+STRIDE = 10
 EPOCHS = 50
-LR = 0.0005
+LR = 0.0001
 K_FOLDS = 10
-DROP_PROB = 0.4
-BATCH_SIZE = 32
-WEIGHT_DECAY = 1e-5
+DROP_PROB = 0.6
+BATCH_SIZE = 8
+WEIGHT_DECAY = 1e-4
 
 # create custom dataset from recorded arrays
 class SkeletonDataset(torch.utils.data.Dataset):
@@ -44,7 +44,11 @@ def main():
     
     # combine recordings and normalize
     train_x, train_y, people = combine_recordings("./data", trim_front=499)
-    train_x = normalize_skeleton(train_x)
+    norm_stats = compute_normalization_stats(train_x)
+    with open('normalization_stats.json', 'w') as f:
+        json.dump(norm_stats, f, indent=4)
+
+    train_x = normalize_skeleton(train_x, stats=norm_stats)
     
     #window data
     windows, window_labels = window_sequence(train_x, train_y, window_size=WINDOW_SIZE, stride=STRIDE)
@@ -57,7 +61,7 @@ def main():
     fold_models_dir = "fold_models"
     os.makedirs(fold_models_dir, exist_ok=True)
     
-    kfold = StratifiedKFold(n_splits=K_FOLDS, shuffle=True, random_state=42)
+    kfold = StratifiedKFold(n_splits=K_FOLDS, shuffle=True)
     
     # use a GPU if available
     device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -170,7 +174,7 @@ def main():
     # load and window separate test data
     test_dir = "./data_val"
     test_x, test_y, _ = combine_recordings(test_dir, trim_front=499, people_map=people)
-    test_x = normalize_skeleton(test_x)
+    test_x = normalize_skeleton(test_x, stats=norm_stats)
     test_windows, test_window_labels = window_sequence(test_x, test_y, window_size=WINDOW_SIZE, stride=STRIDE)
     
     test_dataset = SkeletonDataset(test_windows, test_window_labels)
