@@ -53,7 +53,7 @@ def combine_recordings(directory="./data", trim_front=499, people_map=None):
 
 
 def compute_normalization_stats(data, root_joint=0):
-    # Center around root joint first to make coordinates person-centric.
+    # center data around skeleton instead of physical space
     root = data[:, root_joint, :][:, None, :]
     centered = data - root
 

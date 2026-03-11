@@ -13,7 +13,7 @@ import time
 
 from ui import MainWindow
 
-LINE_THICKNESS = 3
+LINE_THICKNESS = 2
 JOINT_RADIUS = 4
 CAPTURE_SIZE_KINECT = (512, 424)
 CAPTURE_SIZE_OTHERS = (640, 480)
@@ -290,7 +290,6 @@ def main():
     ui.show()
     
     # connect to server
-    # pretend theres server code here
     server = ServerHandler(args.address, args.port)
     server.connection_ready.connect(ui.update_connection_info)
     loop.create_task(server.connect())

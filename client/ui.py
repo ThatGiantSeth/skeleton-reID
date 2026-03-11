@@ -39,23 +39,23 @@ class MainWindow(QMainWindow):
         results_layout = QVBoxLayout();
         results_title = QLabel('Results')
         results_title.setAlignment(Qt.AlignCenter)
-        results_title.setFont(QFont('Arial', 14))
+        results_title.setFont(QFont('Arial', 18))
         self.result = QLabel('Predicted Person: N/A')
         self.result.setAlignment(Qt.AlignCenter)
-        self.result.setFont(QFont('Arial', 12))
+        self.result.setFont(QFont('Arial', 14))
         results_layout.addWidget(results_title)
         results_layout.addWidget(self.result)
         
         stats_layout = QVBoxLayout();
         stats_title = QLabel('Performance')
         stats_title.setAlignment(Qt.AlignCenter)
-        stats_title.setFont(QFont('Arial', 14))
+        stats_title.setFont(QFont('Arial', 18))
         self.time_display = QLabel('Inference time: N/A')
         self.time_display.setAlignment(Qt.AlignCenter)
-        self.time_display.setFont(QFont('Arial', 12))
+        self.time_display.setFont(QFont('Arial', 14))
         self.total_latency_display = QLabel('Total latency: N/A')
         self.total_latency_display.setAlignment(Qt.AlignCenter)
-        self.total_latency_display.setFont(QFont('Arial', 12))
+        self.total_latency_display.setFont(QFont('Arial', 14))
         stats_layout.addWidget(stats_title)
         stats_layout.addWidget(self.time_display)
         stats_layout.addWidget(self.total_latency_display)
@@ -65,7 +65,7 @@ class MainWindow(QMainWindow):
 
         feed_title = QLabel('Feed')
         feed_title.setAlignment(Qt.AlignLeft)
-        feed_title.setFont(QFont('Arial', 14))
+        feed_title.setFont(QFont('Arial', 18))
         camera_layout.addWidget(feed_title)
         
         self.feed = CameraFeed()
@@ -75,7 +75,7 @@ class MainWindow(QMainWindow):
 
         self.connection_stat = QLabel('No server connection.')
         self.connection_stat.setAlignment(Qt.AlignCenter)
-        self.connection_stat.setFont(QFont('Arial', 12))
+        self.connection_stat.setFont(QFont('Arial', 14))
         layout.addLayout(top_layout)
         layout.addLayout(camera_layout)
         layout.addWidget(self.connection_stat)
