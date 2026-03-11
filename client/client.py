@@ -161,27 +161,29 @@ class SkeletonGrabber(QObject):
         self.img = cv2.cvtColor(self.img, cv2.COLOR_RGB2BGR)
         if ut_frame.users:
             for user in ut_frame.users:
-                if user.is_new():
-                    print("new human id:{} detected.".format(user.id))
-                if (user.state == nite2.UserState.NITE_USER_STATE_VISIBLE and
-                    user.skeleton.state != nite2.SkeletonState.NITE_SKELETON_TRACKED):
-                    self.user_tracker.start_skeleton_tracking(user.id)
-                elif (user.state == nite2.UserState.NITE_USER_STATE_VISIBLE and user.skeleton.state == nite2.SkeletonState.NITE_SKELETON_TRACKED):
-                    draw_skeleton(self.img, self.user_tracker, self.depth_stream, self.color_stream, user)
-                    
-                    # Buffer skeleton data for server
-                    joints = user.skeleton.joints
-                    skeleton_array = np.array([
-                                    [joint.position.x, joint.position.y, joint.position.z]
-                                    for joint in joints
-                                    ])
-                    self.skeleton_buffer.append(skeleton_array)
-                    
-                    # Only emit skeleton_ready when buffer is full
-                    if len(self.skeleton_buffer) >= self.buffer_size:
-                        batch = np.array(self.skeleton_buffer)
-                        self.skeleton_ready.emit(batch)
-                        self.skeleton_buffer = []
+                if user.state == nite2.UserState.NITE_USER_STATE_LOST:
+                    self.user_tracker.stop_skeleton_tracking(user.id)
+
+                if user.state == nite2.UserState.NITE_USER_STATE_VISIBLE:
+                    if user.skeleton.state == nite2.SkeletonState.NITE_SKELETON_NONE:
+                        # User became visible but tracking was never started or was stopped; restart it
+                        self.user_tracker.start_skeleton_tracking(user.id)
+                    elif user.skeleton.state == nite2.SkeletonState.NITE_SKELETON_TRACKED:
+                        draw_skeleton(self.img, self.user_tracker, self.depth_stream, self.color_stream, user)
+                        
+                        # Buffer skeleton data for server
+                        joints = user.skeleton.joints
+                        skeleton_array = np.array([
+                                        [joint.position.x, joint.position.y, joint.position.z]
+                                        for joint in joints
+                                        ])
+                        self.skeleton_buffer.append(skeleton_array)
+                        
+                        # Only emit skeleton_ready when buffer is full
+                        if len(self.skeleton_buffer) >= self.buffer_size:
+                            batch = np.array(self.skeleton_buffer)
+                            self.skeleton_ready.emit(batch)
+                            self.skeleton_buffer = []
             
         ut_frame.close()
         color_frame.close()
