@@ -184,6 +184,7 @@ The `openni` bindings package tends to struggle to locate the NiTE installation.
 - NiTE2.jni.dll
 - NiTE2.jni.pdb
 - NiTE2.pdb
+- com.primesense.nite.jar
 
 
 

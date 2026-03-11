@@ -1,3 +1,5 @@
+import argparse
+
 import torch
 from CNN import CNNet
 import torch.nn as nn
@@ -7,8 +9,6 @@ import os
 import json
 
 from preprocessing import combine_recordings, normalize_skeleton, window_sequence, compute_normalization_stats
-
-## maybe make argument processor for these options for HPCs
 
 WINDOW_SIZE = 10
 STRIDE = 10
@@ -41,9 +41,19 @@ class SkeletonDataset(torch.utils.data.Dataset):
 
 ## main program
 def main():
+    parser = argparse.ArgumentParser(description='Skeleton ReID training script.')
+    parser.add_argument('--data_dir', type=str, default='./data', help='Directory containing training data')
+    parser.add_argument('-w', '--window_size', type=int, default=WINDOW_SIZE, help='Window size for training')
+    parser.add_argument('-s', '--stride', type=int, default=STRIDE, help='Stride for windowing')
+    parser.add_argument('-e', '--epochs', type=int, default=EPOCHS, help='Number of training epochs')
+    parser.add_argument('--lr', type=float, default=LR, help='Learning rate')
+    parser.add_argument('-k', '--k_folds', type=int, default=K_FOLDS, help='Number of folds for cross-validation')
+    parser.add_argument('-d', '--drop_prob', type=float, default=DROP_PROB, help='Dropout probability')
+    parser.add_argument('-b', '--batch_size', type=int, default=BATCH_SIZE, help='Batch size for training')
+    args = parser.parse_args()
     
     # combine recordings and normalize
-    train_x, train_y, people = combine_recordings("./data", trim_front=499)
+    train_x, train_y, people = combine_recordings(args.data_dir, trim_front=499)
     norm_stats = compute_normalization_stats(train_x)
     with open('normalization_stats.json', 'w') as f:
         json.dump(norm_stats, f, indent=4)
@@ -51,7 +61,7 @@ def main():
     train_x = normalize_skeleton(train_x, stats=norm_stats)
     
     #window data
-    windows, window_labels = window_sequence(train_x, train_y, window_size=WINDOW_SIZE, stride=STRIDE)
+    windows, window_labels = window_sequence(train_x, train_y, window_size=args.window_size, stride=args.stride)
     print(f"Total training windows for k-fold: {len(windows)}")
     
     # save list of people
@@ -61,7 +71,7 @@ def main():
     fold_models_dir = "fold_models"
     os.makedirs(fold_models_dir, exist_ok=True)
     
-    kfold = StratifiedKFold(n_splits=K_FOLDS, shuffle=True)
+    kfold = StratifiedKFold(n_splits=args.k_folds, shuffle=True)
     
     # use a GPU if available
     device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -95,24 +105,24 @@ def main():
         train_dataset = SkeletonDataset(fold_train_windows, fold_train_labels)
         val_dataset = SkeletonDataset(fold_val_windows, fold_val_labels)
         
-        train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True, num_workers=0)
-        val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False, num_workers=0)
+        train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=0)
+        val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False, num_workers=0)
         
         # Create CNN
-        net = CNNet(in_channel=3, num_joints=15, window_size=WINDOW_SIZE, num_class=num_classes, drop_prob=DROP_PROB).to(device)
+        net = CNNet(in_channel=3, num_joints=15, window_size=args.window_size, num_class=num_classes, drop_prob=args.drop_prob).to(device)
     
         ##Loss Function & Optimizer
         #CrossEntropyLoss: Combines LogSoftmax + NLLLoss.
         #SGD: Stochastic Gradient Descent with momentum. - would Adam be better? see Joe's example
         criterion = nn.CrossEntropyLoss()
-        optimizer = optim.Adam(net.parameters(), lr=LR, weight_decay=WEIGHT_DECAY)
+        optimizer = optim.Adam(net.parameters(), lr=args.lr, weight_decay=WEIGHT_DECAY)
         scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode="min", factor=0.5, patience=8, min_lr=1e-6)
         
         best_fold_acc = 0.0
         fold_best_model_file = os.path.join(fold_models_dir, f"fold_{fold}_best.pth")
         
         # Training loop
-        for epoch in range(EPOCHS):
+        for epoch in range(args.epochs):
             net.train()
             
             running_loss = 0.0
@@ -141,7 +151,7 @@ def main():
             scheduler.step(fold_val_loss)
 
             print(
-                f"Fold: {fold + 1}  Epoch: {epoch + 1}/{EPOCHS}  "
+                f"Fold: {fold + 1}  Epoch: {epoch + 1}/{args.epochs}  "
                 f"Train Accuracy: {train_acc:.2f}%  "
                 f"Validation Accuracy: {fold_val_acc:.2f}%  "
                 f"Train Loss: {avg_train_loss:.4f}  "
@@ -175,16 +185,16 @@ def main():
     test_dir = "./data_val"
     test_x, test_y, _ = combine_recordings(test_dir, trim_front=499, people_map=people)
     test_x = normalize_skeleton(test_x, stats=norm_stats)
-    test_windows, test_window_labels = window_sequence(test_x, test_y, window_size=WINDOW_SIZE, stride=STRIDE)
+    test_windows, test_window_labels = window_sequence(test_x, test_y, window_size=args.window_size, stride=args.stride)
     
     test_dataset = SkeletonDataset(test_windows, test_window_labels)
-    test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=BATCH_SIZE, shuffle=False, num_workers=0)
+    test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False, num_workers=0)
     
     #get test accuracy
-    for fold in range(K_FOLDS):
+    for fold in range(args.k_folds):
         # Create CNN
         model = os.path.join(fold_models_dir, f"fold_{fold}_best.pth");
-        net = CNNet(in_channel=3, num_joints=15, window_size=WINDOW_SIZE, num_class=num_classes, drop_prob=DROP_PROB).to(device)
+        net = CNNet(in_channel=3, num_joints=15, window_size=args.window_size, num_class=num_classes, drop_prob=args.drop_prob).to(device)
         net.load_state_dict(torch.load(model, map_location=device))
         
         # evaluate accuracy

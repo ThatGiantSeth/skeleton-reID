@@ -13,10 +13,6 @@ from preprocessing import normalize_skeleton
 window = 10
 joints = 15
 
-def classifier_model(num_class):
-    model = cnn.CNNet(window_size=window, num_joints=joints, num_class=num_class, drop_prob=0.6)
-    return model
-
 def identify_person(array, model, norm_stats=None):
     if array.shape != (window, joints, 3):
         raise ValueError(f"Input numpy array must have shape ({window}, {joints}, 3)")
@@ -44,7 +40,7 @@ class ClientHandler:
         try:
             with open(norm_stats_path, 'r') as f:
                 self.norm_stats = json.load(f)
-            print(f"Loaded normalization stats from {norm_stats_path}")
+            print(f"Loaded normalization stats.")
         except FileNotFoundError:
             print(f"Warning: normalization stats file not found at {norm_stats_path}. Running without fixed stats.")
 
@@ -52,7 +48,7 @@ class ClientHandler:
         
         print(f"Loaded {num_class} classes.")
 
-        self.model = classifier_model(num_class)
+        self.model = cnn.CNNet(window_size=window, num_joints=joints, num_class=num_class, drop_prob=0.6)
         self.model.load_state_dict(torch.load(model_path, map_location='cpu'))
         self.model.eval()
 

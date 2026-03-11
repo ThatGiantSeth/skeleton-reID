@@ -40,6 +40,9 @@ The script searches for `.npy` files in a directory called `data`, located withi
 > [!warning] 
 > The training script currently acquires its classes from the unique names associated with the files so that multiple samples can be provided per person (e.g. `person1_standing`, `person1_walking`). Therefore, it is probably a good idea to use more than just first names like we do in our example.
 
+
+--- add a section about tuning the model (parameters, etc.) make sure to include that things like drop_prob need to be changed in both the training and server script
+
 # Client
 
 # Server
