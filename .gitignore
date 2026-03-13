@@ -5,7 +5,7 @@ primesense-py36/
 primesense-py-desktop/
 network-env/
 **/data/
-**/data_val/
+**/data_test/
 **/fold_models/
 **.dll
 **.jar

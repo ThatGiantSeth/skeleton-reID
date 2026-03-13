@@ -50,6 +50,10 @@ def main():
     parser.add_argument('-k', '--k_folds', type=int, default=K_FOLDS, help='Number of folds for cross-validation')
     parser.add_argument('-d', '--drop_prob', type=float, default=DROP_PROB, help='Dropout probability')
     parser.add_argument('-b', '--batch_size', type=int, default=BATCH_SIZE, help='Batch size for training')
+    parser.add_argument('--no_matrix', dest='print_matrix', action='store_false', help='Disable confusion matrix printing (may not display well for large datasets)')
+    parser.add_argument('--no_test', dest='test_data', action='store_false', help='Disable testing on validation set')
+    
+    parser.set_defaults(print_matrix=True, test_data=True)
     args = parser.parse_args()
     
     # combine recordings and normalize
@@ -165,8 +169,9 @@ def main():
         print(f"Fold {fold + 1} best validation accuracy: {best_fold_acc:.2f}%")
         
         # Print confusion matrix
-        print(f"\nConfusion Matrix for Fold {fold + 1}:")
-        print_confusion_matrix(net, val_loader, device, num_classes, class_names=class_names)
+        if args.print_matrix:
+            print(f"\nConfusion Matrix for Fold {fold + 1}:")
+            print_confusion_matrix(net, val_loader, device, num_classes, class_names=class_names)
     
     # Print summary
     print(f"\n{'='*50}")
@@ -177,34 +182,36 @@ def main():
     print(f"Mean Accuracy: {sum(fold_results) / len(fold_results):.2f}%")
     print(f"Best Accuracy: {max(fold_results):.2f}%")
     
-    print(f"\n{'='*50}")
-    print("Final Model Evaluation on Test Set:")
-    print(f"{'='*50}")
-    
-    # load and window separate test data
-    test_dir = "./data_val"
-    test_x, test_y, _ = combine_recordings(test_dir, trim_front=499, people_map=people)
-    test_x = normalize_skeleton(test_x, stats=norm_stats)
-    test_windows, test_window_labels = window_sequence(test_x, test_y, window_size=args.window_size, stride=args.stride)
-    
-    test_dataset = SkeletonDataset(test_windows, test_window_labels)
-    test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False, num_workers=0)
-    
-    #get test accuracy
-    for fold in range(args.k_folds):
-        # Create CNN
-        model = os.path.join(fold_models_dir, f"fold_{fold}_best.pth");
-        net = CNNet(in_channel=3, num_joints=15, window_size=args.window_size, num_class=num_classes, drop_prob=args.drop_prob).to(device)
-        net.load_state_dict(torch.load(model, map_location=device))
+    if args.test_data:
+        print(f"\n{'='*50}")
+        print("Final Model Evaluation on Test Set:")
+        print(f"{'='*50}")
         
-        # evaluate accuracy
-        test_acc, test_loss = validate(net, test_loader, criterion, device)
-        print(f"\nTest Accuracy on data_val for fold {fold}: {test_acc:.2f}%")
-        print(f"Final Test Loss on data_val for fold {fold}: {test_loss:.4f}")
+        # load and window separate test data
+        test_dir = "./data_test"
+        test_x, test_y, _ = combine_recordings(test_dir, trim_front=499, people_map=people)
+        test_x = normalize_skeleton(test_x, stats=norm_stats)
+        test_windows, test_window_labels = window_sequence(test_x, test_y, window_size=args.window_size, stride=args.stride)
         
-        # Print confusion matrix
-        print(f"\nConfusion Matrix on Test Set (data_val) for fold {fold}:")
-        print_confusion_matrix(net, test_loader, device, num_classes, class_names=class_names)
+        test_dataset = SkeletonDataset(test_windows, test_window_labels)
+        test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False, num_workers=0)
+        
+        #get test accuracy
+        for fold in range(args.k_folds):
+            # Create CNN
+            model = os.path.join(fold_models_dir, f"fold_{fold}_best.pth");
+            net = CNNet(in_channel=3, num_joints=15, window_size=args.window_size, num_class=num_classes, drop_prob=args.drop_prob).to(device)
+            net.load_state_dict(torch.load(model, map_location=device))
+            
+            # evaluate accuracy
+            test_acc, test_loss = validate(net, test_loader, criterion, device)
+            print(f"\nTest Accuracy on data_val for fold {fold}: {test_acc:.2f}%")
+            print(f"Final Test Loss on data_val for fold {fold}: {test_loss:.4f}")
+            
+            # Print confusion matrix
+            if args.print_matrix:
+                print(f"\nConfusion Matrix on Test Set (data_val) for fold {fold}:")
+                print_confusion_matrix(net, test_loader, device, num_classes, class_names=class_names)
 
 ## majority of these validation functions also taken from PyTorch example
 def evaluate_accuracy(net, loader, device):

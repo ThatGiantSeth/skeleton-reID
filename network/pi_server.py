@@ -30,7 +30,7 @@ def identify_person(array, model, norm_stats=None):
         return pred
 
 class ClientHandler:
-    def __init__(self, model_path, norm_stats_path):
+    def __init__(self, model_path, norm_stats_path, drop_prob):
         self.people_backwards = {}
         self.people = {}
         self.norm_stats = None
@@ -48,7 +48,7 @@ class ClientHandler:
         
         print(f"Loaded {num_class} classes.")
 
-        self.model = cnn.CNNet(window_size=window, num_joints=joints, num_class=num_class, drop_prob=0.6)
+        self.model = cnn.CNNet(window_size=window, num_joints=joints, num_class=num_class, drop_prob=drop_prob)
         self.model.load_state_dict(torch.load(model_path, map_location='cpu'))
         self.model.eval()
 
@@ -95,9 +95,11 @@ def main():
                         help='Specify the port.')
     parser.add_argument('-m', '--model', type=str, default='./skeleton_model_best.pth',
                         help='Path to the model file.')
+    parser.add_argument('-d', '--drop_prob', type=float, default=0.6,
+                        help='Dropout probability for the model.')
     args = parser.parse_args()
     
-    server = ClientHandler(args.model, './normalization_stats.json')
+    server = ClientHandler(args.model, './normalization_stats.json', args.drop_prob)
     loop = asyncio.get_event_loop()
     coro = asyncio.start_server(server.handle_client, args.address, args.port)
     server_instance = loop.run_until_complete(coro)

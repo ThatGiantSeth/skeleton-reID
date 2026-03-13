@@ -115,6 +115,13 @@ python -m venv <env-name>
 However, it is important to note that `python` should sometimes be replaced with the specific version of Python you want to create an environment for e.g. `python3.6.exe` or `python3.11.exe`.
 
 ### Training Environment
+> [!note]
+> If you are using a shared environment (like ODU's High Performance Compute clusters) for training, you may have to use a container runtime to run some of your Python commands instead of running them directly:
+> ```sh
+> crun .\training-env\Scripts\python train.py
+> ```
+> For the ODU HPCs specifically, see the [HPC Intro Guide](https://wiki.hpc.odu.edu/Training/HPC-Intro) for more info on provisioning and using CUDA resources.
+
 Start by creating a new virtual environment with your PyTorch-compatible Python version. You can place this in whichever folder you prefer, but the most convenient location is in the root/base folder of the repository (`skeleton-reID`). An easy way to tell is that the root folder contains `README.md`. You will need to replace "python3.11" with the specific version you installed:
 ```sh
 cd <path/to/skeleton-reID>

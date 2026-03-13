@@ -67,15 +67,55 @@ Successfully saved 1500 frames for seth. It took 120.076s.
 ```
 You should now be able to see the `.npy` recording (and video frames if enabled) in the output folder you selected (`.\output` by default). You can then repeat this process for more people and poses.
 
+## Test Set
+We actually recommend recording **two** separate sets of data for each person, although not strictly required to train the model:
+- Your main training set, used to train the model with cross-validation
+- A separate test set, used to test your model on a separate dataset. This can be shorter than the training set but should still be longer than 500 frames.
+
+Both of these should be recorded with the exact same environment and script. It could be useful to choose two different output directories for the different sets e.g. `train/` and `test/` using the `-o` option.
+
+When you're done recording your training and test sets, move the training data into a directory called `data` and test data into a directory called `data_test`, both within the `network` folder.
+
 # Training Script
-The training script `network/train.py` takes in a set of NumPy arrays containing skeleton data, normalizes them, and trains a CNN `network/CNN.py` on this data. It outputs a folder `fold_models/` containing the best model from each validation fold (see [section that doesn't exist yet]).
+The training script `network/train.py` takes in a set of NumPy arrays containing 3D skeleton data, normalizes them, and trains a CNN `network/CNN.py` on this data. It outputs a folder `fold_models/` containing the best model from each validation fold.
+
 ## Input data
-The CNN is set up to accept skeleton data consisting of 3D world coordinates from an OpenNI-compatible camera like PrimeSense Carmine 1.09 or Microsoft Kinect 360. Any OpenNI camera will work, but the same camera should be used for both training and demonstration for coordinate system consistency. 
-The script searches for `.npy` files in a directory called `data`, located within the script's directory (`./network` by default). The files must be named `<person-name>_xxxxxxxx.npy`. If the files were recorded using the provided recording script, they should already have this format. Anything after the first underscore is ignored.
+The script searches for `.npy` files in a directory called `data`, which should be located within the `./network` directory. The files must be named `<person-name>_xxxxxxxx.npy`. Anything after the first underscore is ignored by the training script. If the files were recorded using the recording script above, they should already have this format.
 
+## Runtime arguments
+Like the recording script, the training script has several runtime arguments that allow you to change different parameters:
+- `--data-dir`, the directory that the training data is located in
+- **!!!** `-w` or `--window_size`, the size of each "window" that the training data is split into, aka how many frames are included in each sample
+- `-s` or `--stride`, how much the windows overlap (the closer the stride is to the window size, the less they overlap). This should generally be less than or equal to the window size.
+- `-e` or `--epochs`, how many epochs to perform
+- `--lr`, the learning rate
+- `-k` or `--k_folds`, how many folds to perform for cross validation. also determines the data split between train/validation.
+- **!!!** `-d` or `--drop_prob`, random dropout probability
+- `-b` or `--batch_size`, number of samples in a single network pass
+- `--no_matrix`, disable printing confusion matrices (mainly useful if the dataset is large enough that a confusion matrix would be hard to read)
+- `--no_test`, disable validation on a separate test set
+  
+> [!important]
+> There are some arguments, marked with a `!!!`, that also need to be changed on the server running your trained model. These will be mentioned again in the [Server](#server) section.
 
---- add a section about tuning the model (parameters, etc.) make sure to include that things like drop_prob need to be changed in both the training and server script
+The script has defaults for each of these arguments (set to the values we used during our training). Therefore, they are not strictly required, but are useful for tuning the model.
 
-# Client
+## Training the model
+If you have all your training data recorded and placed into the `data` directory, you can now run the training script. Assuming you are back in the main project directory:
+```sh
+cd network
+```
+```sh
+..\network-env\Scripts\python train.py
+```
+
+> [!note]
+> If you chose not to record a separate test set earlier, use the `--no_test` option to disable test set validation.
+
+This will take quite some time depending on your hardware. As the script runs, it prints several statistics during training like the current fold, current epoch, training accuracy/loss, and validation accuracy/loss. At the end of each fold, it will print a confusion matrix (unless disabled) with the predictions for each class. At the end of the training process, it will validate each fold against a test set (if provided) and print confusion matrices for these as well.
+
+If everything worked properly, you should now have a folder `network/fold_models`, which contains the best model from each of the folds. You can use the test set validation to choose the one with the highest accuracy and/or lowest class bias.
 
 # Server
+
+# Client

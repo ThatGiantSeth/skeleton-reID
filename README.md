@@ -1,6 +1,9 @@
 # Skeleton Tracking and Reidentification with RGB-D cameras
-## Old Dominion University Vision Lab
-### ECE 481W/482 Senior Design
+By Aubrey McKinney and Seth Myers @ ODU Vision Lab
+
+Senior Design Project 2025-2026
+
+To install and run: [View Wiki](https://github.com/ThatGiantSeth/skeleton-reID/wiki)
 
 ## Project Checklist:
 - [x] Implement k-fold validation
