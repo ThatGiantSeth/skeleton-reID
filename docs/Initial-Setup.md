@@ -24,14 +24,16 @@
 - x86-based machine
 - OpenNI-compatible camera (Examples: Kinect 360, PrimeSense Carmine 1.08/1.09)
 - Windows 10 or 11
-- Python 3.6
+- Python 3.6 (If for some reason PIM is not an option, you can download Python 3.6 standalone from [here](https://web.archive.org/web/20260313185136/https://www.python.org/ftp/python/3.6.8/python-3.6.8-amd64.exe))
 - [CMake v3.4.3](https://github.com/Kitware/CMake/releases/download/v3.4.3/cmake-3.4.3-win32-x86.exe)
 - [OpenNI 2 from structure.io](https://web.archive.org/web/20250912105130/https://s3.amazonaws.com/com.occipital.openni/OpenNI-Windows-x64-2.2.0.33.zip)
 - [PrimeSense NiTE 2.2](https://web.archive.org/web/20260305002027/https://bitbucket.org/kaorun55/openni-2.2/raw/2f54272802bfd24ca32f03327fbabaf85ac4a5c4/NITE%202.2%20%CE%B1/NiTE-Windows-x64-2.2.zip)
 - Visual Studio 2022 (see [Visual Studio Requirements](#visual-studio-requirements) below)
 
 > [!warning] 
-> Many of these are specific versions for a reason:
+> You may notice that some of the links above go to `archive.org`. These are archived downloads in case the original downloads become unavailable in the future. If you want to try the download from the original destination, it is preserved in the archive link and you can extract it by removing `https://web.archive.org/web/xxxxxxxxxxxxxx/` from the link. 
+>
+> In addition, many of these are specific versions/releases for a reason:
 > - Do not use the version of OpenNI provided by the BitBucket repository hosting NiTE 2.2. It will not run properly. Use the version from structure.io linked above.
 > - You MUST use a version of CMake older than v3.5, otherwise some of your `pip` commands will fail.
 > - Trying to run the client on versions of Python > 3.6 will fail. This is due to the outdated `openni` bindings package using deprecated features.
@@ -70,7 +72,7 @@ After the PIM installer completes, you will have to restart your CMD/PowerShell 
 ## Visual Studio Requirements
 The setup scripts for some of the client dependencies make use of some Visual Studio build tools. Therefore, Visual Studio 2017 or later must be installed before setting up the client. **If you do not install VS, you will experience errors when trying to install some packages through `pip`!**
 
-Download the Visual Studio Community Installer from [Microsoft's website](https://visualstudio.microsoft.com/vs/community/). Although this requires a Microsoft account, the Community edition **does NOT** require a subscription! During installation, make sure to check the `Desktop Development with C++` workload. This will install the necessary build tools.
+Download the Visual Studio Community Edition installer from [Microsoft's website](https://visualstudio.microsoft.com/vs/community/). Although this requires a Microsoft account, Community Edition **does NOT** require a paid subscription! During installation, make sure to enable the `Desktop Development with C++` workload. This will install the necessary build tools.
 
 # Setup
 First we will set up the virtual environments, the training script, client and recording scripts (they share their dependencies so will use the same virtual environment), and finally the server.

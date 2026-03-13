@@ -8,11 +8,11 @@ import os
 
 np.set_printoptions(threshold=sys.maxsize)
 
-BATCH_SIZE = 1500
+BATCH_SIZE = 100
 GRAY_COLOR = (64, 64, 64)
 CAPTURE_SIZE_KINECT = (512, 424)
 CAPTURE_SIZE_OTHERS = (640, 480)
-OUTPUT_DIR = "./frames_default"
+FRAMES_DIR = "./frames_default"
 
 
 def parse_arg():
@@ -21,6 +21,13 @@ def parse_arg():
                         help='Specify the window width.')
     parser.add_argument('--no_video', dest='save_frames', action='store_false',
                         help='Do not save video frames.')
+    parser.add_argument('--person', type=str, default='default_person',
+                        help='Specify the person that you are generating training data for.', required=True)
+    parser.add_argument('--pose', type=str, default='default_pose',
+                        help='Specify the pose that you are generating training data for.', required=True)
+    parser.add_argument('-o', '--out_directory', type=str, default='./output', help='Specify the output directory for saved frames.')
+    parser.add_argument('--batch_size', type=int, default=BATCH_SIZE, help='Specify the number of frames to capture.', required=True)
+
     parser.set_defaults(save_frames=True)
     return parser.parse_args()
 
@@ -89,17 +96,26 @@ def capture_skeleton():
     try:
         userTracker = nite2.UserTracker(dev)
     except utils.NiteError as ne:
-        logger.error("Unable to start the NiTE human tracker. Check "
+        print("Unable to start the NiTE human tracker. Check "
                     "the error messages in the console. Model data "
                     "(s.dat, h.dat...) might be inaccessible.")
         sys.exit(-1)
         
-    person = input("Please enter the person that you are generating training data for: ")
-    type = input("Please enter the type of training data (walk, standing, etc.): ")
-    OUTPUT_DIR = f"./frames_{person}{type}{BATCH_SIZE}"
+    
+    if args.person == 'person':
+        person = input("Please enter the person that you are recording: ")
+    else:
+        person = args.person
+    if args.pose == 'pose':
+        type = input("Please enter the pose you are recording (walk, standing, etc.): ")
+    else:
+        type = args.pose
+        
+    
+    FRAMES_DIR = f"./{args.out_directory}/frames_{person}{type}{args.batch_size}"
     # Ensure output directory exists so cv2.imwrite won't fail
-    os.makedirs(OUTPUT_DIR, exist_ok=True)
-    print(f"Recording batch of {BATCH_SIZE} frames for \"{person}\"...")
+    os.makedirs(FRAMES_DIR, exist_ok=True)
+    print(f"Recording batch of {args.batch_size} frames for \"{person}\"...")
     start_time = time.perf_counter()
 
     skeleton_frames = []
@@ -109,7 +125,7 @@ def capture_skeleton():
     win_w = args.window_width
     win_h = int(img_h * win_w / img_w)
     
-    while n < (BATCH_SIZE - 1):
+    while n < (args.batch_size - 1):
         frame = userTracker.read_frame()
 
         depth_frame = frame.get_depth_frame()
@@ -143,9 +159,9 @@ def capture_skeleton():
                 if args.save_frames:
                     # Convert floating depth image in range ~0..1 to uint8 0..255 for safe writing
                     img_to_save = (np.clip(img, 0.0, 1.0) * 255.0).astype(np.uint8)
-                    ok = cv2.imwrite(os.path.join(OUTPUT_DIR, f"frame_{n:04d}.jpeg"), cv2.resize(img_to_save, (win_w, win_h)))
+                    ok = cv2.imwrite(os.path.join(FRAMES_DIR, f"frame_{n:04d}.jpeg"), cv2.resize(img_to_save, (win_w, win_h)))
                     if not ok:
-                        print(f"Could not write image frame {n:04d} to directory {OUTPUT_DIR}!")
+                        print(f"Could not write image frame {n:04d} to directory {FRAMES_DIR}!")
                         break
 
                 cv2.imshow("Depth", cv2.resize(img, (win_w, win_h)))
@@ -153,15 +169,15 @@ def capture_skeleton():
                     break    
                     
     skeleton_array = np.array(skeleton_frames)
-    np.save(f"{person}_{type}{BATCH_SIZE}.npy", skeleton_array)
+    np.save(f"./{args.out_directory}/{person}_{type}{args.batch_size}.npy", skeleton_array)
 
     end_time = time.perf_counter()
 
     final_time = end_time - start_time
                 
-    print(f"Successfully saved {BATCH_SIZE} frames for {person}. It took {final_time:.3f}s.")
+    print(f"Successfully saved {args.batch_size} frames for {person}. It took {final_time:.3f}s.")
 
-    # verify_array = np.load(f"{person}{type}{BATCH_SIZE}.npy")
+    # verify_array = np.load(f"{person}{type}{args.batch_size}.npy")
     # print(f"Verification printout of shape {verify_array.shape}:\n{verify_array}")
             
     close_capture_device()
