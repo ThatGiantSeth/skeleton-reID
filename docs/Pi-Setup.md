@@ -29,7 +29,21 @@ You can navigate this interface with your arrow keys and enter key. Navigate to 
 - Make sure `Automatically Connect` is checked.
 - Finally, click `<OK>` to save the settings.
 
-You can exit `nmtui` by selecting `<Back>` on the connection list and then `<Quit>`.
+You can exit `nmtui` by selecting `<Back>` on the connection list and then `<Quit>`. 
+
+## Updating the system
+We also want to update the system packages and install one additional package `screen`, which is used to run the server in the background after you close the remote connection. You can do this with the following commands:
+```sh
+sudo apt update
+```
+```sh
+sudo apt install screen
+```
+```sh
+sudo apt upgrade
+```
+
+Now you can restart the Pi to ensure that the changes are saved. If everything is set up properly, you should be able to unplug the monitor, keyboard, and mouse from your Pi. In the next section we will discuss how to access the Pi remotely via the command line.
 
 # Setting up remote access
 It is more convenient to be able to control the Pi from your main machine, rather than having to plug in a separate monitor, keyboard, and mouse. Therefore, we will use SSH (Secure SHell) to control to the Pi over the Ethernet connection. However, the disadvantage is that SSH does not forward the desktop GUI, so we will be using the CLI from this point onwards. In addition, we will need a way to transfer files to the Pi so we will install an SFTP (Secure File Transfer Protocol) client.
@@ -76,10 +90,10 @@ Then, update pip and install PyTorch like you did for the training environment:
 ./server-env/bin/python -m pip install --upgrade pip
 ```
 > [!caution]
-> As of the creation of this guide, the current release of PyTorch (2.10.0) will not currently run on Raspberry Pi 4 and below! See [this issue](https://github.com/pytorch/pytorch/issues/174344) for more details. The current workaround is to use an older release of PyTorch. We used PyTorch 2.8.0:
+> As of the creation of this guide, the current release of PyTorch (2.10.0) will not currently run on Raspberry Pi! See [this issue](https://github.com/pytorch/pytorch/issues/174344) for more details. The current workaround is to use an older release of PyTorch. We used PyTorch 2.8.0:
 
 ```sh
-./server-env//bin/pip install numpy torch==2.8.0
+./server-env/bin/pip install numpy torch==2.8.0
 ```
 If you want to try the latest version, you can omit the `==2.8.0` but this is not recommended unless the issue above is solved.
 
@@ -88,12 +102,13 @@ Assuming you still have your WinSCP session open, the process of moving files to
 
 In the left panel, find your project folder and go into the `network` folder. You will need to copy over some of these files to the Pi:
 
-To your home folder:
+To your home folder `/home/user/`:
 - `run_server.sh`
 
 To `skeleton_server`:
 - `CNN.py`
 - `pi_server.py`
+- `preprocessing.py`
 
 Later on in the guide, you will need to copy some more files over to the Pi. The process is exactly the same as described here.
 

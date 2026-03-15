@@ -114,8 +114,55 @@ cd network
 
 This will take quite some time depending on your hardware. As the script runs, it prints several statistics during training like the current fold, current epoch, training accuracy/loss, and validation accuracy/loss. At the end of each fold, it will print a confusion matrix (unless disabled) with the predictions for each class. At the end of the training process, it will validate each fold against a test set (if provided) and print confusion matrices for these as well.
 
-If everything worked properly, you should now have a folder `network/fold_models`, which contains the best model from each of the folds. You can use the test set validation to choose the one with the highest accuracy and/or lowest class bias.
+If everything worked properly, you should now have a folder `network/fold_models`, which contains the best model from each of the folds. You can use the test set validation to choose the one with the highest accuracy and/or lowest class bias. The best model is the one that you will transfer to the server. You should also see two other files in the `network/` folder:
+- `people_map.json`, which is a class mapping (e.g. class 0 is seth, class 1 is aubrey, etc.)
+- `normalization_stats.json`, which saves the minimum and range of your data to ensure consistent normalization between environments
 
 # Server
+As with the setup portion of the guide, I will assume you are using a Raspberry Pi for your server. Now that you have completed training, you have some new files that need to be copied over. These files should be copied into the `skeleton-server` directory on your Pi, using WinSCP as you did during setup:
+- `normalization_stats.json`
+- `people_map.json`
+- `fold_x_best.pth`
+
+## Testing the server
+First, let's test the server script and set up the arguments. Use PuTTY to connect to the Pi and access the command line as you did during setup. Assuming you set up the folders the same way as the guide, navigate to the server folder:
+```sh
+cd skeleton_server
+```
+And run the server with a command like this:
+```sh
+../server-env/bin/python pi_server.py --model ./fold_x_best.pth --window 10
+```
+You will need to change `fold_x_best.pth` to match the model file you copied over and set `--window` to the value you set during training. If the server ran successfully you should see an output like this:
+```
+Loaded normalization stats.
+Loaded 4 classes.
+Serving on ('0.0.0.0', 5555)
+```
+
+## Run script
+To make it easier to run the server in the future without remembering all these parameters, there is a provided runner script `run-server.sh`. It just needs to be edited with the correct parameters for your setup. There are two different ways you can edit this script:
+- **Using WinSCP**: Simply double click the file and it will open in the default text editor. When you save your changes, WinSCP will automatically update the remote file.
+- **Using PuTTY and `nano`:** Connect to the Pi with PuTTY like you did during setup, then use the command `nano run-server.sh` to bring up a CLI text editor. Use your arrow keys to move the cursor and make your edits. To save your file and exit, hit `Ctrl+X`, then `y`, then `Enter`.
+
+Inside `run-server.sh` you will see one long command that may look confusing at first:
+```sh
+bash -c 'cd ./skeleton_server; screen -d -m -S skeleton_server ../server-env/bin/python pi_server.py --model ./fold_x_best.pth --window 10'
+```
+Although you won't need to change most of it, it is good to know how it works so you can update it in the future:
+- `bash -c` indicates that the command inside the quotes needs to be interpreted as `bash` script. In general, don't change this.
+- `cd ./skeleton_server` navigates to the server folder. You should change this if you decided to name your server folder something else.
+- `screen -d -m -S skeleton_server` runs the command after it in a background process called a screen. `-d -m` tells it to start *detached* (in the background), and `-S` allows you to set a name for the screen. This name is `skeleton_server` by default, but can be changed to whatever you want. Using `screen` to manage your server is discussed in more detail below.
+- Finally, `../server-env/bin/python pi_server.py --model ./fold_x_best.pth --window 10` is the actual Python command that runs the server. It should look pretty similar to the command you ran earlier, and you should edit it with the correct parameters like you did before. You can also add the `--address` and `--port` arguments if you want to change them.
+
+## Using `screen` to manage your server
+When you run a Python program on your Pi using PuTTY, it runs inside that terminal environment. Therefore, when you close the connection, the script is interrupted. To work around this, we can use a program called `screen` that allows us to start background tasks.
+
+Screen is an extremely powerful tool, but we will only be using a few of its capabilities for this application:
+- Creating a screen: This is shown above with `screen -d -m -S skeleton_server`. You can omit `-d -m` to have the screen start *attached*, meaning you can view its output.
+- Attaching to a screen: To attach to a screen, use the `-x` flag with the name you assigned during creation e.g. `screen -x skeleton_server`. This will let you view the screen, type commands into it, and view the output.
+- Detaching from a screen: While attached to a screen, press `Ctrl+A` and then release it. This tells `screen` that you are about to type a command. Then press `d` for "detach". This will take you back to the regular CLI.
+
+--- next up: i'm not sure tbh maybe just move on to client section
 
 # Client
