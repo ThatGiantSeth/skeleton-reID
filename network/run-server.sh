@@ -1,1 +1,1 @@
-bash -c 'cd ./skeleton_server; screen -d -m -S skeleton_server ../server-env/bin/python pi_server.py --model ./fold_x_best.pth --window 10'
+bash -c 'cd ./skeleton_server; screen -d -m -S skeleton_server ../server-env/bin/python pi_server.py --model ./fold_x_best.pth --window 10 --drop_prob 0.6'

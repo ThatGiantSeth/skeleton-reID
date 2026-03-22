@@ -114,7 +114,7 @@ cd network
 
 This will take quite some time depending on your hardware. As the script runs, it prints several statistics during training like the current fold, current epoch, training accuracy/loss, and validation accuracy/loss. At the end of each fold, it will print a confusion matrix (unless disabled) with the predictions for each class. At the end of the training process, it will validate each fold against a test set (if provided) and print confusion matrices for these as well.
 
-If everything worked properly, you should now have a folder `network/fold_models`, which contains the best model from each of the folds. You can use the test set validation to choose the one with the highest accuracy and/or lowest class bias. The best model is the one that you will transfer to the server. You should also see two other files in the `network/` folder:
+If everything worked properly, you should now have a folder `network/fold_models`, which contains the best model from each of the folds. You can use the test set validation results to choose the one with the highest accuracy and lowest class bias. The best model is the one that you will transfer to the server. You should also see two other files in the `network/` folder:
 - `people_map.json`, which is a class mapping (e.g. class 0 is seth, class 1 is aubrey, etc.)
 - `normalization_stats.json`, which saves the minimum and range of your data to ensure consistent normalization between environments
 
@@ -131,9 +131,12 @@ cd skeleton_server
 ```
 And run the server with a command like this:
 ```sh
-../server-env/bin/python pi_server.py --model ./fold_x_best.pth --window 10
+../server-env/bin/python pi_server.py --model ./fold_x_best.pth --window 10 --drop_prob 0.6
 ```
-You will need to change `fold_x_best.pth` to match the model file you copied over and set `--window` to the value you set during training. If the server ran successfully you should see an output like this:
+> [!important] 
+> You will need to change `fold_x_best.pth` to match the model file you copied over and set `--window` and `--drop_prob` to the  same values you set during training. 
+
+If the server ran successfully you should see an output like this:
 ```
 Loaded normalization stats.
 Loaded 4 classes.
@@ -142,27 +145,59 @@ Serving on ('0.0.0.0', 5555)
 
 ## Run script
 To make it easier to run the server in the future without remembering all these parameters, there is a provided runner script `run-server.sh`. It just needs to be edited with the correct parameters for your setup. There are two different ways you can edit this script:
-- **Using WinSCP**: Simply double click the file and it will open in the default text editor. When you save your changes, WinSCP will automatically update the remote file.
+- **Using WinSCP**: Simply double click the file and it will open in your default text editor. When you save your changes, WinSCP will automatically update the remote file.
 - **Using PuTTY and `nano`:** Connect to the Pi with PuTTY like you did during setup, then use the command `nano run-server.sh` to bring up a CLI text editor. Use your arrow keys to move the cursor and make your edits. To save your file and exit, hit `Ctrl+X`, then `y`, then `Enter`.
 
 Inside `run-server.sh` you will see one long command that may look confusing at first:
 ```sh
-bash -c 'cd ./skeleton_server; screen -d -m -S skeleton_server ../server-env/bin/python pi_server.py --model ./fold_x_best.pth --window 10'
+bash -c 'cd ./skeleton_server; screen -d -m -S skeleton_server ../server-env/bin/python pi_server.py --model ./fold_x_best.pth --window 10 --drop_prob 0.6'
 ```
 Although you won't need to change most of it, it is good to know how it works so you can update it in the future:
 - `bash -c` indicates that the command inside the quotes needs to be interpreted as `bash` script. In general, don't change this.
 - `cd ./skeleton_server` navigates to the server folder. You should change this if you decided to name your server folder something else.
 - `screen -d -m -S skeleton_server` runs the command after it in a background process called a screen. `-d -m` tells it to start *detached* (in the background), and `-S` allows you to set a name for the screen. This name is `skeleton_server` by default, but can be changed to whatever you want. Using `screen` to manage your server is discussed in more detail below.
-- Finally, `../server-env/bin/python pi_server.py --model ./fold_x_best.pth --window 10` is the actual Python command that runs the server. It should look pretty similar to the command you ran earlier, and you should edit it with the correct parameters like you did before. You can also add the `--address` and `--port` arguments if you want to change them.
+- Finally, `../server-env/bin/python pi_server.py --model ./fold_x_best.pth --window 10 --drop_prob 0.6` is the actual Python command that runs the server. It should look pretty similar to the command you ran earlier, and you should edit it with the correct parameters and model filename like you did before. You can also add the `--address` and `--port` arguments if you want to change them.
 
 ## Using `screen` to manage your server
 When you run a Python program on your Pi using PuTTY, it runs inside that terminal environment. Therefore, when you close the connection, the script is interrupted. To work around this, we can use a program called `screen` that allows us to start background tasks.
 
-Screen is an extremely powerful tool, but we will only be using a few of its capabilities for this application:
+Screen is an extremely powerful tool, but we will only need a few of its capabilities for this application:
 - Creating a screen: This is shown above with `screen -d -m -S skeleton_server`. You can omit `-d -m` to have the screen start *attached*, meaning you can view its output.
 - Attaching to a screen: To attach to a screen, use the `-x` flag with the name you assigned during creation e.g. `screen -x skeleton_server`. This will let you view the screen, type commands into it, and view the output.
 - Detaching from a screen: While attached to a screen, press `Ctrl+A` and then release it. This tells `screen` that you are about to type a command. Then press `d` for "detach". This will take you back to the regular CLI.
 
---- next up: i'm not sure tbh maybe just move on to client section
-
 # Client
+This guide assumes that you are running the client on a Windows machine. If your OpenNI/NiTE installations worked for the recording script, you should not have to set them up again for the client.
+
+## Testing the client
+Make sure you are inside the `client` folder within the project. Assuming you created your `client-env` virtual environment with the same name and in the same location, you can test the client with this command:
+
+```sh
+..\client-env\Scripts\python client.py --address <raspberry-pi-address> --window_size xx
+```
+Fill in the IP address or friendly name that you created during Pi setup and fill in the window size you chose during training.
+
+If your camera is connected and everything is working properly, you should see a window appear showing the camera feed.
+> [!note]
+> OpenNI/NiTE currently has an issue where sometimes control over the camera is not released on shutdown when the client is run several times in succession. This will cause the client to freeze on startup. You can force-close the client and run it again to fix the issue. This is not an issue we can fix without modifying NiTE itself.
+
+## Batch script
+As with the server, once you have your parameters figured out it is best to put them into a script instead of having to type them out every time you run the client. To do this, just copy and paste your version of the command above into the second line of `run-client.bat`. It should look something like this:
+
+```bat
+@echo off
+..\client-env\Scripts\python client.py --address 127.0.0.1 --window_size 10
+```
+
+Now you can just double click this file to run the client. Make sure that you test your command before pasting it in, because this script will not give any error feedback if it terminates.
+
+## UI Overview
+Now that you have the client up and running, you will see different information in the UI based on the current status:
+- At the top, you can see the current ID prediction and latency. If you just started the script, these will all be `N/A`. After a person steps in frame, these should quickly populate with values from the server. **If these stay blank, check the console of both the client and server. If the window sizes or other parameters are mismatched, the server will not properly accept requests from the client.**
+- A large portion of the space is occupied by the camera feed. If a subject steps into frame, they should be able to see a skeleton overlay appear on top of their body.
+- At the very bottom is the server connection status. If everything is set up correctly and your server is currently running, this should say `Connected to server at: <ip>:<port>`. If it says `No Server Connection` for longer than 10 seconds, make sure your networking is set up properly.
+
+> [!note] 
+> Due to, yet again, an issue with (or feature of) NiTE, when a person leaves the frame, skeleton tracking will not stop for between 5-10 seconds. Therefore, if another person steps into frame within this time, there will be a short delay before their skeleton is tracked.
+
+If everything up to this point works properly, you have succesfully set up the skeleton reidentification project! If the accuracy isn't where you want it, you can always go back to previous sections and tweak parameters, retake data, etc. Just make sure to update these parameters on the client and server.
