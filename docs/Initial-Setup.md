@@ -10,8 +10,6 @@
 ### Before installing Python, see [Python Install Manager](#python-install-manager-pim) below.
 
 ## Training
-> [!tip] 
-> CUDA-enabled GPU is strongly recommended for training but not required
 
 - aarch64 (ARM) or x86-based machine (32-bit ARM platforms will not work!)
 - NVIDIA CUDA Toolkit (if using CUDA)
@@ -19,6 +17,9 @@
 
 > [!important]
 > See [PyTorch - Getting Started](https://pytorch.org/get-started/locally/) for currently supported CUDA and Python versions. It is important to install a version of CUDA that is supported by PyTorch. Otherwise, torch will use the CPU even if CUDA is installed.
+
+> [!tip] 
+> CUDA-enabled GPU is strongly recommended for training but not required
 
 ## Client/Recording
 - x86-based machine
@@ -35,8 +36,8 @@
 >
 > In addition, many of these are specific versions/releases for a reason:
 > - Do not use the version of OpenNI provided by the BitBucket repository hosting NiTE 2.2. It will not run properly. Use the version from structure.io linked above.
-> - You MUST use a version of CMake older than v3.5, otherwise some of your `pip` commands will fail.
-> - Trying to run the client on versions of Python > 3.6 will fail. This is due to the outdated `openni` bindings package using deprecated features.
+> - You MUST use a version of CMake older than v3.5, otherwise `pip install opencv-python` will fail. However, after installing `opencv-python`, you can switch back to a newer version. It is only needed to build this specific package.
+> - Trying to run the client on versions of Python > 3.6 will fail. This is due to the outdated `openni` bindings package using deprecated features. If we had more time, it may be possible to rewrite the Python bindings to support newer Python versions. However, given the difficulty and time we have to complete this project, it is not possible.
 
 ## Server
 - aarch64 or x86-based machine (we used a Raspberry Pi 4)
@@ -75,7 +76,7 @@ The setup scripts for some of the client dependencies make use of some Visual St
 Download the Visual Studio Community Edition installer from [Microsoft's website](https://visualstudio.microsoft.com/vs/community/). Although this requires a Microsoft account, Community Edition **does NOT** require a paid subscription! During installation, make sure to enable the `Desktop Development with C++` workload. This will install the necessary build tools.
 
 # Setup
-First we will set up the virtual environments, the training script, client and recording scripts (they share their dependencies so will use the same virtual environment), and finally the server.
+First we will set up the runtime environments for the training, client, and recording scripts. The server environment will be set up later during [Pi Setup](./Pi-Setup).
 
 > [!tip]
 > If you've never used Linux/UNIX before, or at least not Linux and Windows in parallel, note that Windows uses **backslashes** `\` to denote paths e.g. `C:\Users\<user>\Downloads`, while Linux/UNIX filepaths use **forward slashes** `/` e.g. `/home/user/Downloads`. Keep this in mind when you are typing the commands from this guide.
@@ -105,7 +106,7 @@ This will create a folder called `skeleton-reID` that contains all of the files 
 > [!important] 
 > Because this project requires specific Python versions for different components, it is **highly recommended** to use virtual environments to compartmentalize your client/server/training packages and versions. We will be using example environment names throughout this guide that match their associated script e.g. `client-env`, `server-env`, and `training-env`. If you do not want to use virtual environments you can skip them, but the rest of this guide will be a lot more confusing.
 
-In this section, we will create and set up virtual environments for the **training** and **client/recording** portions of this project, including needed Python packages. The Raspberry Pi has its own dedicated setup section ([put the section here]) since it is more involved. This will include creating the **server** virtual environment. 
+In this section, we will create and set up virtual environments for the **training** and **client/recording** portions of this project, including needed Python packages. The Raspberry Pi has its own dedicated [setup section](./Pi-Setup) since it is more involved. This will include creating the **server** virtual environment. 
 
 In general, the command to create a virtual environment is:
 ```sh
