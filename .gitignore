@@ -16,3 +16,5 @@ NiTE.ini
 openni/
 **/people_map.json
 client/output/
+**.log
+**.json

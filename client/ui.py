@@ -43,8 +43,12 @@ class MainWindow(QMainWindow):
         self.result = QLabel('Predicted Person: N/A')
         self.result.setAlignment(Qt.AlignCenter)
         self.result.setFont(QFont('Arial', 14))
+        self.confidence_display = QLabel('Confidence: N/A')
+        self.confidence_display.setAlignment(Qt.AlignCenter)
+        self.confidence_display.setFont(QFont('Arial', 14))
         results_layout.addWidget(results_title)
         results_layout.addWidget(self.result)
+        results_layout.addWidget(self.confidence_display)
         
         stats_layout = QVBoxLayout();
         stats_title = QLabel('Performance')
@@ -96,11 +100,22 @@ class MainWindow(QMainWindow):
         else:
             self.connection_stat.setText(f'Connected to server at: {ip}:{port}')
 
-    def update_results(self, person_id, inference_time, total_latency):
+    def reset_results(self):
+        self.result.setText('Predicted Person: N/A')
+        self.confidence_display.setText('Confidence: N/A')
+        self.time_display.setText('Inference time: N/A')
+        self.total_latency_display.setText('Total latency: N/A')
+
+    def update_results(self, person_id, inference_time, total_latency, confidence=None):
         if inference_time is None:
             self.time_display.setText(f'Inference time: N/A')
         else:
             self.time_display.setText(f'Inference time: {inference_time:.1f} ms')
+
+        if confidence is None:
+            self.confidence_display.setText(f'Confidence: N/A')
+        else:
+            self.confidence_display.setText(f'Confidence: {confidence:.2%}')
             
         if total_latency is None:
             self.total_latency_display.setText(f'Total latency: N/A')

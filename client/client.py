@@ -109,6 +109,7 @@ def close_capture_device():
 class SkeletonGrabber(QObject):
     frame_ready = pyqtSignal(np.ndarray)
     skeleton_ready = pyqtSignal(np.ndarray)
+    no_subject = pyqtSignal()
     
     def __init__(self, ui, buffer_size):
         super().__init__()
@@ -117,6 +118,7 @@ class SkeletonGrabber(QObject):
         self.img = None
         self.skeleton_buffer = []
         self.buffer_size = buffer_size
+        self.subject_in_frame = False
 
         dev_name = self.dev.get_device_info().name.decode('UTF-8')
         print("Device Name: {}".format(dev_name))
@@ -148,6 +150,7 @@ class SkeletonGrabber(QObject):
     
     def capture_skeleton(self):
         ut_frame = self.user_tracker.read_frame()
+        user_tracked = False
         
         depth_frame = self.depth_stream.read_frame()
         color_frame = self.color_stream.read_frame()
@@ -169,6 +172,7 @@ class SkeletonGrabber(QObject):
                         # User became visible but tracking was never started or was stopped; restart it
                         self.user_tracker.start_skeleton_tracking(user.id)
                     elif user.skeleton.state == nite2.SkeletonState.NITE_SKELETON_TRACKED:
+                        user_tracked = True
                         draw_skeleton(self.img, self.user_tracker, self.depth_stream, self.color_stream, user)
                         
                         # Buffer skeleton data for server
@@ -184,6 +188,14 @@ class SkeletonGrabber(QObject):
                             batch = np.array(self.skeleton_buffer)
                             self.skeleton_ready.emit(batch)
                             self.skeleton_buffer = []
+
+        if not user_tracked:
+            self.skeleton_buffer = []
+            if self.subject_in_frame:
+                self.no_subject.emit()
+            self.subject_in_frame = False
+        else:
+            self.subject_in_frame = True
             
         ut_frame.close()
         color_frame.close()
@@ -199,7 +211,7 @@ class SkeletonGrabber(QObject):
 class ServerHandler(QObject):
     connection_ready = pyqtSignal(str, int)
     connection_lost = pyqtSignal()
-    result_ready = pyqtSignal(str, float, float)
+    result_ready = pyqtSignal(str, float, float, float)
     
     def __init__(self, ip, port):
         super().__init__()
@@ -234,13 +246,15 @@ class ServerHandler(QObject):
             try:
                 data = await asyncio.wait_for(self.reader.readline(), timeout=3)
                 result = data.decode(encoding='utf-8').strip()
-                req_id, person_name, t = result.split(",")
+                req_id, person_name, t, confidence = result.split(",")
                 req_id = int(req_id)
                 total_latency_ms = None
                 start_time = self.request_times.pop(req_id, None)
                 if start_time is not None:
                     total_latency_ms = (time.perf_counter() - start_time) * 1000.0
-                self.result_ready.emit(str(person_name), float(t), total_latency_ms)
+                if total_latency_ms is None:
+                    total_latency_ms = 0.0
+                self.result_ready.emit(str(person_name), float(t), total_latency_ms, float(confidence))
                 ## print(f"Debug output: id={req_id} person={person_name} t={t}")
             except asyncio.TimeoutError:
                 continue
@@ -300,6 +314,7 @@ def main():
     skeleton_grabber = SkeletonGrabber(ui, args.window_size)
     skeleton_grabber.frame_ready.connect(ui.update_ui)
     skeleton_grabber.skeleton_ready.connect(server.send)
+    skeleton_grabber.no_subject.connect(ui.reset_results)
     server.result_ready.connect(ui.update_results)
     
     app.aboutToQuit.connect(close_capture_device)

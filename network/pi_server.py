@@ -24,8 +24,9 @@ def identify_person(array, model, window, norm_stats=None):
     model.eval()
     with torch.no_grad():
         logits, _ = model(tensor)
-        pred = torch.argmax(logits, dim=1).item()
-        return pred
+        probs = torch.softmax(logits, dim=1)
+        conf, pred = torch.max(probs, dim=1)
+        return pred.item(), conf.item()
 
 class ClientHandler:
     def __init__(self, model_path, norm_stats_path, drop_prob, window):
@@ -33,6 +34,7 @@ class ClientHandler:
         self.people = {}
         self.norm_stats = None
         self.window = window
+        self.unknown_threshold = 0.70
         with open('./people_map.json', 'r') as f:
             self.people_backwards = json.load(f)
 
@@ -67,13 +69,16 @@ class ClientHandler:
                 # Assuming data is received as a numpy array serialized in bytes
                 input_array = np.frombuffer(data, dtype=np.float32).reshape((self.window, joints, 3)).copy()
                 start_time = time.perf_counter()
-                person_id = identify_person(input_array, self.model, self.window, self.norm_stats)
+                person_id, confidence = identify_person(input_array, self.model, self.window, self.norm_stats)
                 end_time = (time.perf_counter() - start_time) * 1000
                 print(f"Identified person ID: {person_id} in {end_time:.1f} ms")
                 
-                person_name = self.people.get(person_id, "Unknown")
+                if confidence < self.unknown_threshold:
+                    person_name = "unknown"
+                else:
+                    person_name = self.people.get(person_id, "unknown")
                 
-                response = f"{req_id},{person_name},{end_time}\n".encode(encoding='utf-8')
+                response = f"{req_id},{person_name},{end_time},{confidence:.4f}\n".encode(encoding='utf-8')
                 writer.write(response)
                 await writer.drain()
             except asyncio.TimeoutError:
